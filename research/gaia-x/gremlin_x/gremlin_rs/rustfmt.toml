@@ -1,0 +1,8 @@
+
+# Stable
+edition = "2018"
+chain_width = 64
+max_width = 108
+use_small_heuristics = "Max"
+fn_args_layout = "Compressed"
+
