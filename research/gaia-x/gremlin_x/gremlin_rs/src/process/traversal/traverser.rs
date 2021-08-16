@@ -1,7 +1,8 @@
 use crate::structure::{AsTag, GraphElement};
 use crate::{str_err, DynError, Object};
 use pegasus::api::function::{DynIter, FnResult};
-use pegasus::api::{Key, KeySelector};
+use pegasus::api::Key;
+//use pegasus::api::KeySelector;
 use pegasus::codec::*;
 use pegasus::Data;
 use pegasus_common::collections::Collection;
@@ -58,15 +59,15 @@ pub struct Traverser {
     selected: Vec<(AsTag, Entry)>,
 }
 
-pub struct TraverserGroupKey;
-
-impl KeySelector<Traverser> for TraverserGroupKey {
-    type Target = Entry;
-
-    fn select(&self, item: &Traverser) -> FnResult<Cow<Self::Target>> {
-        todo!()
-    }
-}
+// pub struct TraverserGroupKey;
+//
+// impl KeySelector<Traverser> for TraverserGroupKey {
+//     type Target = Entry;
+//
+//     fn select(&self, item: &Traverser) -> FnResult<Cow<Self::Target>> {
+//         todo!()
+//     }
+// }
 
 impl Traverser {
     pub fn new<E: Into<Entry>>(entry: E) -> Self {

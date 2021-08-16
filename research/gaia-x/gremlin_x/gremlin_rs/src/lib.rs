@@ -41,14 +41,12 @@ pub mod structure;
 
 pub mod common;
 pub mod compiler;
-mod storage;
 
 use crate::common::serde_dyn::register_type;
 use crate::structure::filter::codec::ParseError;
 pub use common::object::Object;
 pub use generated::gremlin::GremlinStep as GremlinStepPb;
 use std::io;
-pub use storage::create_demo_graph;
 
 #[cfg(feature = "proto_inplace")]
 mod generated {
