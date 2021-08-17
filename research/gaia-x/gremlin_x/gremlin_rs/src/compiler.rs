@@ -33,8 +33,10 @@ use pegasus::{BuildJobError, Data};
 // use pegasus_server::factory::JobParser;
 // use pegasus_server::pb::fold::Kind;
 // use pegasus_server::pb::operator_def::OpKind;
+use crate::generated::gremlin as gremlin_pb;
+use pegasus_server::pb as server_pb;
 use pegasus_server::pb::operator::OpKind;
-use pegasus_server::pb::{BinaryResource, Operator};
+use pegasus_server::pb::{BinaryResource, MapKind, Operator};
 use pegasus_server::service::JobParser;
 use pegasus_server::JobRequest;
 use prost::Message;
@@ -73,9 +75,8 @@ impl FnGenerator {
     }
 
     fn gen_map(&self, res: &BinaryResource) -> Result<TraverserMap, BuildJobError> {
-        // let step = decode::<pb::gremlin::GremlinStep>(&res.resource)?;
-        // Ok(step.gen_map()?)
-        todo!()
+        let step = decode::<gremlin_pb::GremlinStep>(&res.resource)?;
+        Ok(step.gen_map()?)
     }
 
     fn gen_flat_map(&self, res: &BinaryResource) -> Result<TraverserFlatMap, BuildJobError> {
@@ -116,6 +117,39 @@ impl GremlinJobCompiler {
     fn install(
         &self, mut stream: Stream<Traverser>, plan: &[Operator],
     ) -> Result<Stream<Traverser>, BuildJobError> {
+        for op in &plan[..] {
+            if let Some(ref op) = op.op_kind {
+                match op {
+                    OpKind::Map(map) => {
+                        if let Some(ref res) = map.resource {
+                            let map_kind: server_pb::MapKind = unsafe { std::mem::transmute(map.kind) };
+                            match map_kind {
+                                server_pb::MapKind::Map => {
+                                    let func = self.udf_gen.gen_map(res)?;
+                                    stream = stream.map(move |input| func.exec(input))?;
+                                }
+                                server_pb::MapKind::Flatmap => {
+                                    let func = self.udf_gen.gen_flat_map(res)?;
+                                    stream = stream.flat_map(move |input| func.exec(input))?;
+                                }
+                                server_pb::MapKind::FilterMap => {
+                                    todo!()
+                                }
+                                server_pb::MapKind::Filter => {
+                                    let func = self.udf_gen.gen_filter(res)?;
+                                    stream = stream.filter(move |input| func.test(input))?;
+                                }
+                            }
+                        } else {
+                            Err("map function not found;")?
+                        }
+                    }
+                    OpKind::Comm(_) => {}
+                    OpKind::Agg(_) => {}
+                    OpKind::Iter(_) => {}
+                }
+            }
+        }
         // for op in &plan[..] {
         //     if let Some(ref op) = op.op_kind {
         //         match op {
@@ -368,4 +402,9 @@ impl JobParser<Traverser, Traverser> for GremlinJobCompiler {
     ) -> Result<(), BuildJobError> {
         unimplemented!()
     }
+}
+
+#[inline]
+fn decode<T: Message + Default>(binary: &[u8]) -> Result<T, BuildJobError> {
+    Ok(T::decode(binary).map_err(|e| format!("protobuf decode failure: {}", e))?)
 }

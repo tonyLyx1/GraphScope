@@ -18,10 +18,12 @@ use crate::process::traversal::step::MapFuncGen;
 use crate::process::traversal::Traverser;
 use crate::structure::{AsTag, QueryParams, Vertex, VertexOrEdge};
 use crate::{str_err, DynResult};
+use bit_set::BitSet;
 use pegasus::api::function::{FnResult, MapFunction};
 
 struct IdentityFunc {
     params: QueryParams<Vertex>,
+    tag: Option<AsTag>,
 }
 
 // runtime identity step is used in the following scenarios:
@@ -32,59 +34,46 @@ struct IdentityFunc {
 // 5. Give hint of tags to remove. Since we may not able to remove tags in some OpKind, e.g., Filter, Sort, Group, etc, we add identity (map step) to remove tags.
 impl MapFunction<Traverser, Traverser> for IdentityFunc {
     fn exec(&self, mut input: Traverser) -> FnResult<Traverser> {
-        todo!()
-        // if let Some(elem) = input.get_graph_element_mut() {
-        //     if self.params.props.is_some() {
-        //         // the case of preserving some properties in vertex in previous
-        //         match elem.get_mut() {
-        //             VertexOrEdge::V(ori_v) => {
-        //                 // the case of preserving properties on demand for vertex
-        //                 let id = ori_v.id;
-        //                 let graph = crate::get_graph().unwrap();
-        //                 let mut r = graph.get_vertex(&[id], &self.params)?;
-        //                 if let Some(v) = r.next() {
-        //                     *ori_v = v;
-        //                     Ok(input)
-        //                 } else {
-        //                     Err(str_err(&format!("vertex with id {} not found", id)))
-        //                 }
-        //             }
-        //             // TODO: there is no need to add identity after edge, check with Compiler
-        //             VertexOrEdge::E(_ori_e) => {
-        //                 // the case that we assume all properties are already preserved for edge, so we do not query the edges
-        //                 Ok(input)
-        //             }
-        //         }
-        //     } else {
-        //         // the case of identity step
-        //         Ok(input)
-        //     }
-        // } else if let Some(_) = input.get_object() {
-        //     // the case of as step, e.g., g.V().count().as("a")
-        //     Ok(input)
-        // } else {
-        //     Err(str_err("invalid head in identity"))
-        // }
+        if let Some(tag) = self.tag {
+            input.set_as_tag(tag);
+        }
+        if let Some(elem) = input.get_graph_element_mut() {
+            if self.params.props.is_some() {
+                // the case of preserving properties on demand for vertex
+                if let VertexOrEdge::V(ori_v) = elem.get_mut() {
+                    let id = ori_v.id;
+                    let graph = crate::get_graph().ok_or(str_err("Graph is None"))?;
+                    let mut r = graph.get_vertex(&[id], &self.params)?;
+                    if let Some(v) = r.next() {
+                        *ori_v = v;
+                    } else {
+                        return Err(str_err(&format!("vertex with id {} not found", id)));
+                    }
+                }
+            }
+        }
+        Ok(input)
     }
 }
 
-// pub struct IdentityStep {
-//     pub step: pb::IdentityStep,
-// }
-//
-// impl MapFuncGen for IdentityStep {
-//     fn gen_map(self) -> DynResult<Box<dyn MapFunction<Traverser, Traverser>>> {
-//         let step = self.step;
-//         let is_all = step.is_all;
-//         let properties = step.properties;
-//         let mut params = QueryParams::new();
-//         if is_all || !properties.is_empty() {
-//             // the case when we need all properties or given properties
-//             params.props = Some(properties);
-//         } else {
-//             // the case when we do not need any property
-//             params.props = None;
-//         };
-//         Ok(Box::new(IdentityFunc { params }))
-//     }
-// }
+pub struct IdentityStep {
+    pub step: pb::IdentityStep,
+    pub tag: Option<AsTag>,
+}
+
+impl MapFuncGen for IdentityStep {
+    fn gen_map(self) -> DynResult<Box<dyn MapFunction<Traverser, Traverser>>> {
+        let step = self.step;
+        let is_all = step.is_all;
+        let properties = step.properties;
+        let mut params = QueryParams::new();
+        if is_all || !properties.is_empty() {
+            // the case when we need all properties or given properties
+            params.props = Some(properties);
+        } else {
+            // the case when we do not need any property
+            params.props = None;
+        };
+        Ok(Box::new(IdentityFunc { params, tag: self.tag }))
+    }
+}

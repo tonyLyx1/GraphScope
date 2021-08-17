@@ -15,14 +15,14 @@
 
 use crate::common::object::Object;
 use crate::generated::gremlin as pb;
-use crate::process::traversal::traverser::TravelObject;
+use crate::process::traversal::traverser::{Entry, Path, TravelObject};
 use crate::process::traversal::Traverser;
 use crate::str_err;
 use crate::structure::AsTag;
 use pegasus::api::function::*;
 
-struct PathStep {
-    tag: Option<AsTag>,
+pub struct PathStep {
+    pub tag: Option<AsTag>,
 }
 
 impl MapFunction<Traverser, Traverser> for PathStep {
@@ -38,19 +38,25 @@ impl MapFunction<Traverser, Traverser> for PathStep {
     }
 }
 
-pub struct PathLocalCountStep {
+pub struct CountLocalStep {
     pub tag: Option<AsTag>,
 }
 
-impl MapFunction<Traverser, Traverser> for PathLocalCountStep {
+impl MapFunction<Traverser, Traverser> for CountLocalStep {
     fn exec(&self, mut input: Traverser) -> FnResult<Traverser> {
-        // let count = input.get_path_len() as u64;
-        // let count = TravelObject::Count(count);
-        // let mut t = input.split(count);
-        // if let Some(tag) = self.tag {
-        //     t.set_as_tag(tag);
-        // }
-        // Ok(t)
-        todo!()
+        let entry = input.get_entry();
+        let count = match entry {
+            Entry::Element(_) => 1,
+            Entry::Pair(_, _) => 1,
+            Entry::Collection(collection) => collection.len() as u64,
+            Entry::Group(_, _) => 1,
+            Entry::Map(map) => map.len() as u64,
+        };
+        let count_traverser = TravelObject::Count(count);
+        let mut t = input.split(count_traverser);
+        if let Some(tag) = self.tag {
+            t.set_as_tag(tag);
+        }
+        Ok(t)
     }
 }

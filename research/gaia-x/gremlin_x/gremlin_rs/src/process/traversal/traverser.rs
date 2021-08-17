@@ -1,13 +1,13 @@
 use crate::structure::{AsTag, GraphElement};
 use crate::{str_err, DynError, Object};
 use pegasus::api::function::{DynIter, FnResult};
-use pegasus::api::Key;
-//use pegasus::api::KeySelector;
+use pegasus::api::{HasKey, Key};
 use pegasus::codec::*;
 use pegasus::Data;
 use pegasus_common::collections::Collection;
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::ops::AddAssign;
 
@@ -40,6 +40,7 @@ pub enum Entry {
     Pair(Element, Element),
     Collection(Vec<Element>),
     Group(Element, Vec<Element>),
+    Map(HashMap<Element, Vec<Element>>),
 }
 
 #[derive(Debug, Clone)]
@@ -59,7 +60,15 @@ pub struct Traverser {
     selected: Vec<(AsTag, Entry)>,
 }
 
-// pub struct TraverserGroupKey;
+pub struct TraverserGroupKey;
+
+impl HasKey for TraverserGroupKey {
+    type Target = Entry;
+
+    fn get_key(&self) -> &Self::Target {
+        unimplemented!()
+    }
+}
 //
 // impl KeySelector<Traverser> for TraverserGroupKey {
 //     type Target = Entry;
@@ -312,6 +321,7 @@ impl Traverser {
         todo!()
     }
 
+    // TODO(bingqing): after .path(), we may still need to keep the original path info (according to standard gremlin)
     pub fn path(self) -> Option<Traverser> {
         match self.path {
             Some(Path::Path(mut path)) => {
