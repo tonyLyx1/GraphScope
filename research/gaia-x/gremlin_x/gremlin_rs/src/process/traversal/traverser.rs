@@ -205,6 +205,42 @@ impl Traverser {
         }
     }
 
+    pub fn select(&self, tag: AsTag) -> Option<&Entry> {
+        if !self.selected.is_empty() {
+            // // self.selected.retain(|(_, v)| !v.is_none());
+            // if !self.selected.is_empty() {
+            //     for (k, v) in self.selected.iter_mut() {
+            //         if *k == tag {
+            //             let entry = std::mem::replace(v, Entry::default());
+            //             return Some(Cow::Owned(entry));
+            //         }
+            //     }
+            // }
+        }
+
+        match self.path {
+            Some(Path::LabeledPath(ref path)) => {
+                for (k, v) in path.iter() {
+                    if *k == tag {
+                        return Some(v);
+                    }
+                }
+                None
+            }
+            Some(Path::Path(ref path)) => {
+                for (k, v) in path.iter() {
+                    if let Some(key) = k {
+                        if *key == tag {
+                            return Some(v);
+                        }
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
     pub fn select_first(&self, tag: AsTag) -> Option<Cow<Entry>> {
         if !self.selected.is_empty() {
             // // self.selected.retain(|(_, v)| !v.is_none());
@@ -450,6 +486,21 @@ impl Into<Entry> for GraphElement {
 impl Into<Entry> for TravelObject {
     fn into(self) -> Entry {
         Entry::Element(Element::OutGraph(self))
+    }
+}
+
+impl Into<Element> for TravelObject {
+    fn into(self) -> Element {
+        Element::OutGraph(self)
+    }
+}
+
+impl Into<Entry> for Element {
+    fn into(self) -> Entry {
+        match self {
+            Element::InGraph(graph_element) => graph_element.into(),
+            Element::OutGraph(object) => object.into(),
+        }
     }
 }
 

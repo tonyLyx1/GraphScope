@@ -13,11 +13,14 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
+use crate::generated::gremlin::select_step::Pop;
 use crate::process::traversal::step::select_by::{ByModulating, SelectKey};
+use crate::process::traversal::traverser::{Element, Entry, TravelObject};
 use crate::process::traversal::Traverser;
-use crate::str_err;
-use crate::structure::AsTag;
+use crate::structure::{AsTag, Details};
+use crate::{str_err, Element as GraphElement};
 use pegasus::api::function::{FnResult, MapFunction};
+use std::borrow::Cow;
 
 /// select forward and inline project;
 ///
@@ -32,13 +35,20 @@ use pegasus::api::function::{FnResult, MapFunction};
 /// select('a').by($traversal) => { key = [`SelectKey::Tagged(['a'])`], by_mod = [ByModulating::Prepared] } where the `$traversal` result is prepared
 /// in advance by fork subtask;
 pub struct SelectOneStep {
+    pop: Pop,
     key: SelectKey,
     by_mod: ByModulating,
     tag: Option<AsTag>,
 }
 
 impl MapFunction<Traverser, Traverser> for SelectOneStep {
-    fn exec(&self, _input: Traverser) -> FnResult<Traverser> {
-        todo!()
+    fn exec(&self, input: Traverser) -> FnResult<Traverser> {
+        let selected_entry = self.key.select_pop(&input, self.pop).ok_or(str_err("select None entry"))?;
+        let new_entry = self.by_mod.modulate_by(selected_entry)?;
+        let mut traverser = input.split(new_entry);
+        if let Some(tag) = self.tag {
+            traverser.set_as_tag(tag);
+        }
+        Ok(traverser)
     }
 }
