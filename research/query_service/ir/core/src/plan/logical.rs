@@ -593,11 +593,14 @@ impl AsLogical for common_pb::Value {
                 if let Some(item) = self.item.as_mut() {
                     match item {
                         common_pb::value::Item::Str(name) => {
-                            *item = common_pb::value::Item::I32(
-                                schema
-                                    .get_table_id(name)
-                                    .unwrap_or(INVALID_TABLE_ID),
-                            );
+                            let table_id = schema
+                                .get_table_id(name)
+                                .unwrap_or(INVALID_TABLE_ID);
+                            *item = common_pb::value::Item::I32(table_id);
+                            // Add table id into the current node's metadata
+                            plan_meta
+                                .curr_node_meta_mut()
+                                .insert_table(table_id.into());
                         }
                         _ => {}
                     }
@@ -685,10 +688,14 @@ impl AsLogical for pb::QueryParams {
         if let Some(schema) = &meta.schema {
             if plan_meta.is_preprocess() && schema.is_table_id() {
                 for table in self.table_names.iter_mut() {
-                    *table = schema
+                    let table_id = schema
                         .get_table_id_from_pb(table)
-                        .unwrap_or(INVALID_TABLE_ID)
-                        .into();
+                        .unwrap_or(INVALID_TABLE_ID);
+                    *table = table_id.into();
+                    // Add table id into the current node's metadata
+                    plan_meta
+                        .curr_node_meta_mut()
+                        .insert_table(table_id.into());
                 }
             }
         }
@@ -731,20 +738,15 @@ impl AsLogical for pb::Select {
 
 impl AsLogical for pb::Scan {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
+        plan_meta
+            .curr_node_meta_mut()
+            .set_meta_type(unsafe { std::mem::transmute::<i32, MetaType>(self.scan_opt) });
         if let Some(params) = self.params.as_mut() {
             params.preprocess(meta, plan_meta)?;
-            let node_meta = plan_meta.curr_node_meta_mut();
-            for table in &params.table_names {
-                node_meta.insert_table(table.clone().try_into()?)
-            }
         }
         if let Some(index_pred) = self.idx_predicate.as_mut() {
             index_pred.preprocess(meta, plan_meta)?;
         }
-        plan_meta
-            .curr_node_meta_mut()
-            .set_meta_type(unsafe { std::mem::transmute::<i32, MetaType>(self.scan_opt) });
-
         Ok(())
     }
 }
@@ -771,12 +773,6 @@ impl AsLogical for pb::EdgeExpand {
         }
         if let Some(expand) = self.base.as_mut() {
             expand.preprocess(meta, plan_meta)?;
-            if let Some(params) = &expand.params {
-                let node_meta = plan_meta.curr_node_meta_mut();
-                for table in &params.table_names {
-                    node_meta.insert_table(table.clone().try_into()?);
-                }
-            }
         }
         Ok(())
     }
@@ -879,41 +875,41 @@ impl AsLogical for pb::Join {
 
 impl AsLogical for pb::Sink {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
-        for tag in &self.tags {
-            if let Some(node) = plan_meta.get_tag_node(&tag.clone().try_into()?) {
-                if let Some(node_meta) = plan_meta.get_node_meta(node) {
-                    let ty = node_meta.get_meta_type();
-                    if let Some(schema) = &meta.schema {
-                        if schema.is_table_id() {
-                            if node_meta.get_tables().is_empty() {
-                                for (&id, name) in schema.get_table_names(ty) {
-                                    self.id_name_mappings
-                                        .push(pb::sink::IdNameMapping {
-                                            id,
-                                            name: name.clone(),
-                                            meta_type: unsafe { std::mem::transmute::<MetaType, i32>(ty) },
-                                        })
-                                }
-                            } else {
-                                for table in node_meta.get_tables() {
-                                    match table {
-                                        NameOrId::Str(_) => {}
-                                        NameOrId::Id(table_id) => {
-                                            self.id_name_mappings
-                                                .push(pb::sink::IdNameMapping {
-                                                    id: *table_id,
-                                                    name: schema
-                                                        .get_table_names(ty)
-                                                        .get(table_id)
-                                                        .ok_or(IrError::TableNotExist(table.clone()))?
-                                                        .clone(),
-                                                    meta_type: unsafe {
-                                                        std::mem::transmute::<MetaType, i32>(ty)
-                                                    },
-                                                })
-                                        }
-                                    }
-                                }
+        if meta.schema.is_none() {
+            return Ok(());
+        }
+        let schema = meta.schema.as_ref().unwrap();
+        if !schema.is_table_id() {
+            return Ok(());
+        }
+        for (_, &node) in plan_meta.get_tag_nodes().iter() {
+            if let Some(node_meta) = plan_meta.get_node_meta(node) {
+                let ty = node_meta.get_meta_type();
+                if node_meta.get_tables().is_empty() {
+                    for (&id, name) in schema.get_table_names(ty) {
+                        self.id_name_mappings
+                            .push(pb::sink::IdNameMapping {
+                                id,
+                                name: name.clone(),
+                                meta_type: unsafe { std::mem::transmute::<MetaType, i32>(ty) },
+                            })
+                    }
+                } else {
+                    for table in node_meta.get_tables() {
+                        match table {
+                            NameOrId::Id(table_id) => self
+                                .id_name_mappings
+                                .push(pb::sink::IdNameMapping {
+                                    id: *table_id,
+                                    name: schema
+                                        .get_table_names(ty)
+                                        .get(table_id)
+                                        .ok_or(IrError::TableNotExist(table.clone()))?
+                                        .clone(),
+                                    meta_type: unsafe { std::mem::transmute::<MetaType, i32>(ty) },
+                                }),
+                            _ => {
+                                unreachable!()
                             }
                         }
                     }

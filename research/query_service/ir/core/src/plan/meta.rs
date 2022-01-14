@@ -446,14 +446,6 @@ impl PlanMeta {
             .or_default()
     }
 
-    pub fn curr_node_meta(&self) -> Option<&NodeMeta> {
-        self.get_node_meta(self.curr_node)
-    }
-
-    pub fn get_node_meta(&self, id: u32) -> Option<&NodeMeta> {
-        self.node_metas.get(&id)
-    }
-
     pub fn tag_node_meta_mut(&mut self, tag_opt: Option<&NameOrId>) -> IrResult<&mut NodeMeta> {
         if let Some(tag) = tag_opt {
             if let Some(&node_id) = self.tag_nodes.get(tag) {
@@ -466,12 +458,24 @@ impl PlanMeta {
         }
     }
 
+    pub fn get_node_meta(&self, id: u32) -> Option<&NodeMeta> {
+        self.node_metas.get(&id)
+    }
+
+    pub fn curr_node_meta(&self) -> Option<&NodeMeta> {
+        self.get_node_meta(self.curr_node)
+    }
+
     pub fn insert_tag_node(&mut self, tag: NameOrId, node: u32) {
         self.tag_nodes.entry(tag).or_insert(node);
     }
 
     pub fn get_tag_node(&self, tag: &NameOrId) -> Option<u32> {
         self.tag_nodes.get(tag).cloned()
+    }
+
+    pub fn get_tag_nodes(&self) -> &HashMap<NameOrId, u32> {
+        &self.tag_nodes
     }
 
     pub fn get_or_set_tag_id(&mut self, tag: NameOrId) -> &NameOrId {
