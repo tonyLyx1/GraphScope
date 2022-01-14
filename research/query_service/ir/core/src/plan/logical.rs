@@ -24,10 +24,11 @@ use std::rc::Rc;
 use ir_common::error::{ParsePbError, ParsePbResult};
 use ir_common::generated::algebra as pb;
 use ir_common::generated::common as common_pb;
+use ir_common::NameOrId;
 use vec_map::VecMap;
 
-use crate::error::IrResult;
-use crate::plan::meta::{PlanMeta, StoreMeta, STORE_META};
+use crate::error::{IrError, IrResult};
+use crate::plan::meta::{MetaType, PlanMeta, StoreMeta, STORE_META};
 use crate::JsonIO;
 
 pub static INVALID_TABLE_ID: i32 = i32::MIN;
@@ -540,7 +541,9 @@ impl AsLogical for common_pb::Property {
                                 .into();
                         }
                     }
-                    plan_meta.insert_tag_columns(None, key.clone().try_into()?)?;
+                    plan_meta
+                        .curr_node_meta_mut()
+                        .insert_column(key.clone().try_into()?);
                 }
                 _ => {}
             }
@@ -563,13 +566,15 @@ impl AsLogical for common_pb::Variable {
                                     .into();
                             }
                         }
-                        plan_meta.insert_tag_columns(
-                            self.tag
-                                .clone()
-                                .map(|tag| tag.try_into())
-                                .transpose()?,
-                            key.clone().try_into()?,
-                        )?;
+                        plan_meta
+                            .tag_node_meta_mut(
+                                self.tag
+                                    .clone()
+                                    .map(|tag| tag.try_into())
+                                    .transpose()?
+                                    .as_ref(),
+                            )?
+                            .insert_column(key.clone().try_into()?);
                     }
                     _ => {}
                 }
@@ -623,13 +628,15 @@ impl AsLogical for common_pb::Expression {
                                                     .into();
                                             }
                                         }
-                                        plan_meta.insert_tag_columns(
-                                            var.tag
-                                                .clone()
-                                                .map(|tag| tag.try_into())
-                                                .transpose()?,
-                                            key.clone().try_into()?,
-                                        )?;
+                                        plan_meta
+                                            .tag_node_meta_mut(
+                                                var.tag
+                                                    .clone()
+                                                    .map(|tag| tag.try_into())
+                                                    .transpose()?
+                                                    .as_ref(),
+                                            )?
+                                            .insert_column(key.clone().try_into()?);
                                     }
                                     common_pb::property::Item::Label(_) => count = 1,
                                     _ => count = 0,
@@ -694,7 +701,9 @@ impl AsLogical for pb::QueryParams {
                         .into();
                 }
             }
-            plan_meta.insert_tag_columns(None, column.clone().try_into()?)?;
+            plan_meta
+                .curr_node_meta_mut()
+                .insert_column(column.clone().try_into()?);
         }
         Ok(())
     }
@@ -724,10 +733,18 @@ impl AsLogical for pb::Scan {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
         if let Some(params) = self.params.as_mut() {
             params.preprocess(meta, plan_meta)?;
+            let node_meta = plan_meta.curr_node_meta_mut();
+            for table in &params.table_names {
+                node_meta.insert_table(table.clone().try_into()?)
+            }
         }
         if let Some(index_pred) = self.idx_predicate.as_mut() {
             index_pred.preprocess(meta, plan_meta)?;
         }
+        plan_meta
+            .curr_node_meta_mut()
+            .set_meta_type(unsafe { std::mem::transmute::<i32, MetaType>(self.scan_opt) });
+
         Ok(())
     }
 }
@@ -743,8 +760,23 @@ impl AsLogical for pb::ExpandBase {
 
 impl AsLogical for pb::EdgeExpand {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
+        if self.is_edge {
+            plan_meta
+                .curr_node_meta_mut()
+                .set_meta_type(MetaType::Relation);
+        } else {
+            plan_meta
+                .curr_node_meta_mut()
+                .set_meta_type(MetaType::Entity);
+        }
         if let Some(expand) = self.base.as_mut() {
             expand.preprocess(meta, plan_meta)?;
+            if let Some(params) = &expand.params {
+                let node_meta = plan_meta.curr_node_meta_mut();
+                for table in &params.table_names {
+                    node_meta.insert_table(table.clone().try_into()?);
+                }
+            }
         }
         Ok(())
     }
@@ -795,7 +827,9 @@ impl AsLogical for pb::IndexPredicate {
                                             .into();
                                     }
                                 }
-                                plan_meta.insert_tag_columns(None, key.clone().try_into()?)?;
+                                plan_meta
+                                    .curr_node_meta_mut()
+                                    .insert_column(key.clone().try_into()?);
                             }
                             common_pb::property::Item::Label(_) => {
                                 if let Some(val) = pred.value.as_mut() {
@@ -844,7 +878,49 @@ impl AsLogical for pb::Join {
 }
 
 impl AsLogical for pb::Sink {
-    fn preprocess(&mut self, _meta: &StoreMeta, _plan_meta: &mut PlanMeta) -> IrResult<()> {
+    fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
+        for tag in &self.tags {
+            if let Some(node) = plan_meta.get_tag_node(&tag.clone().try_into()?) {
+                if let Some(node_meta) = plan_meta.get_node_meta(node) {
+                    let ty = node_meta.get_meta_type();
+                    if let Some(schema) = &meta.schema {
+                        if schema.is_table_id() {
+                            if node_meta.get_tables().is_empty() {
+                                for (&id, name) in schema.get_table_names(ty) {
+                                    self.id_name_mappings
+                                        .push(pb::sink::IdNameMapping {
+                                            id,
+                                            name: name.clone(),
+                                            meta_type: unsafe { std::mem::transmute::<MetaType, i32>(ty) },
+                                        })
+                                }
+                            } else {
+                                for table in node_meta.get_tables() {
+                                    match table {
+                                        NameOrId::Str(_) => {}
+                                        NameOrId::Id(table_id) => {
+                                            self.id_name_mappings
+                                                .push(pb::sink::IdNameMapping {
+                                                    id: *table_id,
+                                                    name: schema
+                                                        .get_table_names(ty)
+                                                        .get(table_id)
+                                                        .ok_or(IrError::TableNotExist(table.clone()))?
+                                                        .clone(),
+                                                    meta_type: unsafe {
+                                                        std::mem::transmute::<MetaType, i32>(ty)
+                                                    },
+                                                })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -1134,7 +1210,10 @@ mod test {
 
         // Assert whether the columns have been updated in PlanMeta
         assert_eq!(
-            plan_meta.get_node_columns(0).unwrap(),
+            plan_meta
+                .get_node_meta(0)
+                .unwrap()
+                .get_columns(),
             // has a new column "name", which is mapped to 1
             &vec![1.into()]
                 .into_iter()
@@ -1160,7 +1239,10 @@ mod test {
 
         // Assert whether the columns have been updated in PlanMeta
         assert_eq!(
-            plan_meta.get_node_columns(1).unwrap(),
+            plan_meta
+                .get_node_meta(1)
+                .unwrap()
+                .get_columns(),
             // node1 with tag a has a new column "name", which is mapped to 1
             &vec![1.into()]
                 .into_iter()
@@ -1192,14 +1274,20 @@ mod test {
 
         // Assert whether the columns have been updated in PlanMeta
         assert_eq!(
-            plan_meta.get_node_columns(0).unwrap(),
+            plan_meta
+                .get_node_meta(0)
+                .unwrap()
+                .get_columns(),
             // node1 with tag a has a new column "name", which is mapped to 1
             &vec![1.into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
         );
         assert_eq!(
-            plan_meta.get_node_columns(2).unwrap(),
+            plan_meta
+                .get_node_meta(2)
+                .unwrap()
+                .get_columns(),
             // node2 with tag b has a new column "id", which is mapped to 0
             &vec![0.into()]
                 .into_iter()
@@ -1270,13 +1358,19 @@ mod test {
         }
         // Assert whether the columns have been updated in PlanMeta
         assert_eq!(
-            plan_meta.get_node_columns(0).unwrap(),
+            plan_meta
+                .get_node_meta(0)
+                .unwrap()
+                .get_columns(),
             &vec![1.into(), 2.into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
         );
         assert_eq!(
-            plan_meta.get_node_columns(1).unwrap(),
+            plan_meta
+                .get_node_meta(1)
+                .unwrap()
+                .get_columns(),
             &vec![2.into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
@@ -1317,7 +1411,10 @@ mod test {
             .unwrap();
         assert_eq!(plan.plan_meta.get_curr_node(), 0);
         assert_eq!(
-            plan.plan_meta.get_node_columns(0).unwrap(),
+            plan.plan_meta
+                .get_node_meta(0)
+                .unwrap()
+                .get_columns(),
             &vec!["age".into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
@@ -1335,7 +1432,10 @@ mod test {
             .unwrap();
         assert_eq!(plan.plan_meta.get_curr_node(), 3);
         assert_eq!(
-            plan.plan_meta.get_node_columns(0).unwrap(),
+            plan.plan_meta
+                .get_node_meta(0)
+                .unwrap()
+                .get_columns(),
             &vec!["age".into(), "id".into(), "name".into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
@@ -1388,7 +1488,10 @@ mod test {
             .unwrap();
         assert_eq!(plan.plan_meta.get_curr_node(), 1);
         assert_eq!(
-            plan.plan_meta.get_node_columns(1).unwrap(),
+            plan.plan_meta
+                .get_node_meta(1)
+                .unwrap()
+                .get_columns(),
             &vec!["lang".into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
@@ -1417,7 +1520,10 @@ mod test {
         plan.append_operator_as_node(project.into(), vec![3])
             .unwrap();
         assert_eq!(
-            plan.plan_meta.get_node_columns(1).unwrap(),
+            plan.plan_meta
+                .get_node_meta(1)
+                .unwrap()
+                .get_columns(),
             &vec!["lang".into(), "name".into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
@@ -1459,7 +1565,10 @@ mod test {
             .unwrap();
         assert_eq!(plan.plan_meta.get_curr_node(), 0);
         assert_eq!(
-            plan.plan_meta.get_node_columns(0).unwrap(),
+            plan.plan_meta
+                .get_node_meta(0)
+                .unwrap()
+                .get_columns(),
             &vec!["name".into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
@@ -1500,8 +1609,9 @@ mod test {
         assert_eq!(plan.plan_meta.get_curr_node(), opr_id as u32);
         assert_eq!(
             plan.plan_meta
-                .get_node_columns(opr_id as u32)
-                .unwrap(),
+                .get_node_meta(opr_id as u32)
+                .unwrap()
+                .get_columns(),
             &vec!["date".into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
@@ -1534,8 +1644,9 @@ mod test {
         assert_eq!(plan.plan_meta.get_curr_node(), opr_id as u32 - 1);
         assert_eq!(
             plan.plan_meta
-                .get_node_columns(opr_id as u32 - 1)
-                .unwrap(),
+                .get_node_meta(opr_id as u32 - 1)
+                .unwrap()
+                .get_columns(),
             &vec!["id".into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
@@ -1555,12 +1666,9 @@ mod test {
         assert_eq!(plan.plan_meta.get_curr_node(), opr_id as u32);
         assert_eq!(
             plan.plan_meta
-                .get_node_columns(
-                    plan.plan_meta
-                        .get_tag_node(&"a".into())
-                        .unwrap()
-                )
-                .unwrap(),
+                .tag_node_meta_mut(Some(&"a".into()))
+                .unwrap()
+                .get_columns(),
             &vec!["age".into(), "name".into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()
@@ -1580,12 +1688,9 @@ mod test {
         assert_eq!(plan.plan_meta.get_curr_node(), opr_id as u32);
         assert_eq!(
             plan.plan_meta
-                .get_node_columns(
-                    plan.plan_meta
-                        .get_tag_node(&"c".into())
-                        .unwrap()
-                )
-                .unwrap(),
+                .tag_node_meta_mut(Some(&"c".into()))
+                .unwrap()
+                .get_columns(),
             &vec!["age".into(), "id".into(), "name".into()]
                 .into_iter()
                 .collect::<BTreeSet<_>>()

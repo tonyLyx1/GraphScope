@@ -25,8 +25,8 @@ use prost::EncodeError;
 #[derive(Debug, Clone)]
 pub enum IrError {
     // Logical Errors
-    TableNotExist(String),
-    ColumnNotExist(String),
+    TableNotExist(NameOrId),
+    ColumnNotExist(NameOrId),
     TagNotExist(NameOrId),
     ParsePbError(ParsePbError),
     ParseExprError(ExprError),
