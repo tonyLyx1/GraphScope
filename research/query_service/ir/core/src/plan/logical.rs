@@ -879,7 +879,7 @@ impl AsLogical for pb::Sink {
             return Ok(());
         }
         let schema = meta.schema.as_ref().unwrap();
-        if !schema.is_table_id() {
+        if !(plan_meta.is_preprocess() && schema.is_table_id()) {
             return Ok(());
         }
         for (_, &node) in plan_meta.get_tag_nodes().iter() {
