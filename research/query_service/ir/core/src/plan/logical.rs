@@ -27,7 +27,7 @@ use ir_common::generated::common as common_pb;
 use ir_common::NameOrId;
 use vec_map::VecMap;
 
-use crate::error::{IrError, IrResult};
+use crate::error::IrResult;
 use crate::plan::meta::{MetaType, PlanMeta, StoreMeta, STORE_META};
 use crate::JsonIO;
 
@@ -38,7 +38,7 @@ pub static INVALID_COLUMN_ID: i32 = i32::MIN;
 ///
 /// [`Node`]: crate::generated::algebra::logical_plan::Node
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Node {
+pub struct Node {
     pub id: u32,
     pub opr: pb::logical_plan::Operator,
     pub parents: BTreeSet<u32>,
@@ -70,7 +70,7 @@ pub(crate) type NodeType = Rc<RefCell<Node>>;
 ///
 /// [`LogicalPlan`]: crate::generated::algebra::LogicalPlan
 #[derive(Default, Clone)]
-pub(crate) struct LogicalPlan {
+pub struct LogicalPlan {
     pub nodes: VecMap<NodeType>,
     /// To record the total number of operators ever created in the logical plan,
     /// **ignorant of the removed nodes**
@@ -597,10 +597,6 @@ impl AsLogical for common_pb::Value {
                                 .get_table_id(name)
                                 .unwrap_or(INVALID_TABLE_ID);
                             *item = common_pb::value::Item::I32(table_id);
-                            // Add table id into the current node's metadata
-                            plan_meta
-                                .curr_node_meta_mut()
-                                .insert_table(table_id.into());
                         }
                         _ => {}
                     }
@@ -614,6 +610,7 @@ impl AsLogical for common_pb::Value {
 impl AsLogical for common_pb::Expression {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
         let mut count = 0;
+        let mut is_label_eq = false;
         for opr in self.operators.iter_mut() {
             if let Some(item) = opr.item.as_mut() {
                 match item {
@@ -654,6 +651,9 @@ impl AsLogical for common_pb::Expression {
                             if *l >= 0 && *l <= 5 {
                                 count = 2; // indicates LabelKey <cmp>
                             }
+                            if *l == 0 {
+                                is_label_eq = true;
+                            }
                         } else {
                             count = 0;
                         }
@@ -662,6 +662,18 @@ impl AsLogical for common_pb::Expression {
                         if count == 2 {
                             // indicates LabelKey <cmp> labelValue
                             c.preprocess(meta, plan_meta)?;
+                            let table = match &c.item {
+                                Some(common_pb::value::Item::Str(name)) => name.clone().into(),
+                                Some(common_pb::value::Item::I32(id)) => (*id).into(),
+                                _ => unreachable!(),
+                            };
+                            if is_label_eq {
+                                // Add table id into the current node's metadata
+                                plan_meta
+                                    .curr_node_meta_mut()
+                                    .insert_table(table);
+                                is_label_eq = false;
+                            }
                         }
                         count = 0;
                     }
@@ -692,10 +704,6 @@ impl AsLogical for pb::QueryParams {
                         .get_table_id_from_pb(table)
                         .unwrap_or(INVALID_TABLE_ID);
                     *table = table_id.into();
-                    // Add table id into the current node's metadata
-                    plan_meta
-                        .curr_node_meta_mut()
-                        .insert_table(table_id.into());
                 }
             }
         }
@@ -743,6 +751,11 @@ impl AsLogical for pb::Scan {
             .set_meta_type(unsafe { std::mem::transmute::<i32, MetaType>(self.scan_opt) });
         if let Some(params) = self.params.as_mut() {
             params.preprocess(meta, plan_meta)?;
+            for table in &params.table_names {
+                plan_meta
+                    .curr_node_meta_mut()
+                    .insert_table(table.clone().try_into()?);
+            }
         }
         if let Some(index_pred) = self.idx_predicate.as_mut() {
             index_pred.preprocess(meta, plan_meta)?;
@@ -773,6 +786,32 @@ impl AsLogical for pb::EdgeExpand {
         }
         if let Some(expand) = self.base.as_mut() {
             expand.preprocess(meta, plan_meta)?;
+            if let Some(params) = &expand.params {
+                for table_pb in &params.table_names {
+                    let table: NameOrId = table_pb.clone().try_into()?;
+                    if self.is_edge {
+                        plan_meta
+                            .curr_node_meta_mut()
+                            .insert_table(table);
+                    } else {
+                        if let Some(schema) = &meta.schema {
+                            if let Some((src, dst)) = schema.get_entity_tables(&table) {
+                                if expand.direction == 0 {
+                                    // out
+                                    plan_meta.curr_node_meta_mut().insert_table(dst);
+                                } else if expand.direction == 1 {
+                                    // in
+                                    plan_meta.curr_node_meta_mut().insert_table(src);
+                                } else {
+                                    // both
+                                    plan_meta.curr_node_meta_mut().insert_table(src);
+                                    plan_meta.curr_node_meta_mut().insert_table(dst);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -882,39 +921,38 @@ impl AsLogical for pb::Sink {
         if !(plan_meta.is_preprocess() && schema.is_table_id()) {
             return Ok(());
         }
-        for (_, &node) in plan_meta.get_tag_nodes().iter() {
-            if let Some(node_meta) = plan_meta.get_node_meta(node) {
-                let ty = node_meta.get_meta_type();
-                if node_meta.get_tables().is_empty() {
-                    for (&id, name) in schema.get_table_names(ty) {
-                        self.id_name_mappings
-                            .push(pb::sink::IdNameMapping {
-                                id,
-                                name: name.clone(),
-                                meta_type: unsafe { std::mem::transmute::<MetaType, i32>(ty) },
-                            })
-                    }
-                } else {
-                    for table in node_meta.get_tables() {
-                        match table {
-                            NameOrId::Id(table_id) => self
-                                .id_name_mappings
-                                .push(pb::sink::IdNameMapping {
-                                    id: *table_id,
-                                    name: schema
-                                        .get_table_names(ty)
-                                        .get(table_id)
-                                        .ok_or(IrError::TableNotExist(table.clone()))?
-                                        .clone(),
-                                    meta_type: unsafe { std::mem::transmute::<MetaType, i32>(ty) },
-                                }),
-                            _ => {
-                                unreachable!()
-                            }
+        let mut id_name_mappings = BTreeSet::<(i32, String, i32)>::new();
+        for (_, node_meta) in plan_meta.get_all_node_metas().iter() {
+            let ty = node_meta.get_meta_type();
+            if node_meta.get_tables().is_empty() {
+                for (&id, name) in schema.get_table_names(ty) {
+                    id_name_mappings
+                        .insert((id, name.clone(), unsafe { std::mem::transmute::<MetaType, i32>(ty) }));
+                }
+            } else {
+                for table in node_meta.get_tables() {
+                    match table {
+                        NameOrId::Id(table_id) => {
+                            id_name_mappings.insert((
+                                *table_id,
+                                schema
+                                    .get_table_names(ty)
+                                    .get(table_id)
+                                    .cloned()
+                                    .unwrap_or("invalid_table_name".to_string()),
+                                unsafe { std::mem::transmute::<MetaType, i32>(ty) },
+                            ));
+                        }
+                        _ => {
+                            unreachable!()
                         }
                     }
                 }
             }
+        }
+        for (id, name, meta_type) in id_name_mappings.into_iter() {
+            self.id_name_mappings
+                .push(pb::sink::IdNameMapping { id, name, meta_type })
         }
 
         Ok(())
@@ -1163,9 +1201,26 @@ mod test {
         plan_meta.insert_tag_node("b".into(), 2);
 
         set_schema_simple(
-            vec![("person".to_string(), 0), ("software".to_string(), 1)],
-            vec![("knows".to_string(), 0), ("creates".to_string(), 1)],
-            vec![("id".to_string(), 0), ("name".to_string(), 1), ("age".to_string(), 2)],
+            vec![("person".to_string(), 0).into(), ("software".to_string(), 1).into()],
+            vec![
+                (
+                    ("knows".to_string(), 0).into(),
+                    ("person".to_string(), 0).into(),
+                    ("person".to_string(), 0).into(),
+                )
+                    .into(),
+                (
+                    ("creates".to_string(), 1).into(),
+                    ("person".to_string(), 0).into(),
+                    ("software".to_string(), 1).into(),
+                )
+                    .into(),
+            ],
+            vec![
+                ("id".to_string(), 0).into(),
+                ("name".to_string(), 1).into(),
+                ("age".to_string(), 2).into(),
+            ],
         );
         let mut expression = str_to_expr_pb("@.~label == \"person\"".to_string()).unwrap();
         expression
@@ -1297,9 +1352,26 @@ mod test {
         plan_meta.set_preprocess(true);
         plan_meta.insert_tag_node("a".into(), 1);
         set_schema_simple(
-            vec![("person".to_string(), 0), ("software".to_string(), 1)],
-            vec![("knows".to_string(), 0), ("creates".to_string(), 1)],
-            vec![("id".to_string(), 0), ("name".to_string(), 1), ("age".to_string(), 2)],
+            vec![("person".to_string(), 0).into(), ("software".to_string(), 1).into()],
+            vec![
+                (
+                    ("knows".to_string(), 0).into(),
+                    ("person".to_string(), 0).into(),
+                    ("person".to_string(), 0).into(),
+                )
+                    .into(),
+                (
+                    ("creates".to_string(), 1).into(),
+                    ("person".to_string(), 0).into(),
+                    ("software".to_string(), 1).into(),
+                )
+                    .into(),
+            ],
+            vec![
+                ("id".to_string(), 0).into(),
+                ("name".to_string(), 1).into(),
+                ("age".to_string(), 2).into(),
+            ],
         );
         let mut scan = pb::Scan {
             scan_opt: 0,

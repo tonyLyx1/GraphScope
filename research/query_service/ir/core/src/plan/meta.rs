@@ -39,7 +39,7 @@ pub fn set_schema_from_json<R: io::Read>(read: R) {
 
 /// The simple schema, mapping either label or property name into id.
 pub fn set_schema_simple(
-    entities: Vec<(String, i32)>, relations: Vec<(String, i32)>, columns: Vec<(String, i32)>,
+    entities: Vec<EntityPair>, relations: Vec<RelationTriplet>, columns: Vec<EntityPair>,
 ) {
     if let Ok(mut meta) = STORE_META.write() {
         let schema: Schema = (entities, relations, columns).into();
@@ -71,11 +71,23 @@ pub struct EntityPair {
     id: i32,
 }
 
+impl From<(String, i32)> for EntityPair {
+    fn from(tuple: (String, i32)) -> Self {
+        EntityPair { name: tuple.0, id: tuple.1 }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct RelationTriplet {
+    edge: EntityPair,
     src: EntityPair,
     dst: EntityPair,
-    edge: EntityPair,
+}
+
+impl From<(EntityPair, EntityPair, EntityPair)> for RelationTriplet {
+    fn from(tuple: (EntityPair, EntityPair, EntityPair)) -> Self {
+        Self { edge: tuple.0, src: tuple.1, dst: tuple.2 }
+    }
 }
 
 impl From<schema_pb::ColumnKey> for Column {
@@ -176,6 +188,10 @@ pub struct Schema {
     is_table_id: bool,
     /// Is the column name mapped as id
     is_column_id: bool,
+    /// The label (string) mappings from relation to its src and dst entities
+    rel_entity_labels: HashMap<String, (String, String)>,
+    /// The label (id) mappings from relation to its src and dst entities
+    rel_entity_ids: HashMap<i32, (i32, i32)>,
     /// Entities
     entities: Vec<(EntityPair, Vec<Column>)>,
     /// Relations
@@ -221,29 +237,55 @@ impl Schema {
     pub fn is_table_id(&self) -> bool {
         self.is_table_id
     }
+
+    pub fn get_entity_tables(&self, rel_table: &NameOrId) -> Option<(NameOrId, NameOrId)> {
+        match rel_table {
+            NameOrId::Str(name) => self
+                .rel_entity_labels
+                .get(name)
+                .map(|(src, dst)| (NameOrId::Str(src.clone()), NameOrId::Str(dst.clone()))),
+            NameOrId::Id(id) => self
+                .rel_entity_ids
+                .get(id)
+                .map(|(src, dst)| (NameOrId::Id(*src), NameOrId::Id(*dst))),
+        }
+    }
 }
 
-impl From<(Vec<(String, i32)>, Vec<(String, i32)>, Vec<(String, i32)>)> for Schema {
-    fn from(tuple: (Vec<(String, i32)>, Vec<(String, i32)>, Vec<(String, i32)>)) -> Self {
+impl From<(Vec<EntityPair>, Vec<RelationTriplet>, Vec<EntityPair>)> for Schema {
+    fn from(tuple: (Vec<EntityPair>, Vec<RelationTriplet>, Vec<EntityPair>)) -> Self {
         let (entities, relations, columns) = tuple;
         let mut schema = Schema::default();
         schema.is_table_id = !entities.is_empty() || !relations.is_empty();
         schema.is_column_id = !columns.is_empty();
 
         if schema.is_table_id {
-            for (name, id) in entities.into_iter() {
-                schema.table_map.insert(name.clone(), id);
-                schema.id_name_rev[0].insert(id, name);
+            for pair in entities.into_iter() {
+                schema
+                    .table_map
+                    .insert(pair.name.clone(), pair.id);
+                schema.id_name_rev[0].insert(pair.id, pair.name);
             }
-            for (name, id) in relations.into_iter() {
-                schema.table_map.insert(name.clone(), id);
-                schema.id_name_rev[1].insert(id, name);
+            for triplet in relations.into_iter() {
+                let (pair, src, dst) = (triplet.edge, triplet.src, triplet.dst);
+                schema
+                    .table_map
+                    .insert(pair.name.clone(), pair.id);
+                schema.id_name_rev[1].insert(pair.id, pair.name.clone());
+                schema
+                    .rel_entity_ids
+                    .insert(pair.id, (src.id, dst.id));
+                schema
+                    .rel_entity_labels
+                    .insert(pair.name, (src.name, dst.name));
             }
         }
         if schema.is_column_id {
-            for (name, id) in columns.into_iter() {
-                schema.column_map.insert(name.clone(), id);
-                schema.id_name_rev[2].insert(id, name);
+            for pair in columns.into_iter() {
+                schema
+                    .column_map
+                    .insert(pair.name.clone(), pair.id);
+                schema.id_name_rev[2].insert(pair.id, pair.name);
             }
         }
 
@@ -462,6 +504,10 @@ impl PlanMeta {
         self.node_metas.get(&id)
     }
 
+    pub fn get_all_node_metas(&self) -> &HashMap<u32, NodeMeta> {
+        &self.node_metas
+    }
+
     pub fn curr_node_meta(&self) -> Option<&NodeMeta> {
         self.get_node_meta(self.curr_node)
     }
@@ -474,7 +520,7 @@ impl PlanMeta {
         self.tag_nodes.get(tag).cloned()
     }
 
-    pub fn get_tag_nodes(&self) -> &HashMap<NameOrId, u32> {
+    pub fn get_all_tag_nodes(&self) -> &HashMap<NameOrId, u32> {
         &self.tag_nodes
     }
 
