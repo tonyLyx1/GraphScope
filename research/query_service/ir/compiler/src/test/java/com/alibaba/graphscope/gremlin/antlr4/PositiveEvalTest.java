@@ -19,11 +19,9 @@ package com.alibaba.graphscope.gremlin.antlr4;
 import com.alibaba.graphscope.gremlin.plugin.script.AntlrToJavaScriptEngine;
 import org.apache.tinkerpop.gremlin.process.traversal.Order;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
-import org.apache.tinkerpop.gremlin.process.traversal.Pop;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
-import org.apache.tinkerpop.gremlin.process.traversal.step.map.SelectStep;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerFactory;
 import org.junit.Assert;
@@ -35,6 +33,8 @@ import javax.script.Bindings;
 import javax.script.ScriptContext;
 import javax.script.SimpleBindings;
 import javax.script.SimpleScriptContext;
+import java.util.Arrays;
+import java.util.List;
 
 public class PositiveEvalTest {
     private Graph graph;
@@ -185,6 +185,11 @@ public class PositiveEvalTest {
     @Test
     public void g_V_has_age_P_eq_test() {
         Assert.assertEquals(g.V().has("age", P.eq(10)), eval("g.V().has('age', eq(10))"));
+    }
+
+    @Test
+    public void g_V_has_age_P_eq_1_test() {
+        Assert.assertEquals(g.V().has("age", P.eq(10)), eval("g.V().has('age', P.eq(10))"));
     }
 
     @Test
@@ -388,6 +393,11 @@ public class PositiveEvalTest {
     @Test
     public void g_V_has_within_ints_test() {
         Assert.assertEquals(g.V().has("age", P.within(10, 11)), eval("g.V().has('age', within(10, 11))"));
+    }
+
+    @Test
+    public void g_V_has_within_ints_1_test() {
+        Assert.assertEquals(g.V().has("age", P.within(10, 11)), eval("g.V().has('age', within([10, 11]))"));
     }
 
     @Test
