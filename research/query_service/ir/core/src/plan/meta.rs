@@ -387,6 +387,8 @@ impl JsonIO for Schema {
                 if !schema.table_map.contains_key(key) {
                     schema.table_map.insert(key.clone(), rel.id);
                     schema.id_name_rev[1].insert(rel.id, key.clone());
+                    schema.rel_entity_ids.insert(rel.id, (rel.src_id, rel.dst_id));
+                    schema.rel_entity_labels.insert(key.clone(), (rel.src_name, rel.dst_name));
                 }
             }
             if schema_pb.is_column_id {
