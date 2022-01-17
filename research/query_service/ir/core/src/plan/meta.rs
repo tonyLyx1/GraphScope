@@ -189,9 +189,9 @@ pub struct Schema {
     /// Is the column name mapped as id
     is_column_id: bool,
     /// The label (string) mappings from relation to its src and dst entities
-    rel_entity_labels: HashMap<String, (String, String)>,
+    rel_entity_labels: HashMap<String, Vec<(String, String)>>,
     /// The label (id) mappings from relation to its src and dst entities
-    rel_entity_ids: HashMap<i32, (i32, i32)>,
+    rel_entity_ids: HashMap<i32, Vec<(i32, i32)>>,
     /// Entities
     entities: Vec<(EntityPair, Vec<Column>)>,
     /// Relations
@@ -243,11 +243,11 @@ impl Schema {
             NameOrId::Str(name) => self
                 .rel_entity_labels
                 .get(name)
-                .map(|(src, dst)| (NameOrId::Str(src.clone()), NameOrId::Str(dst.clone()))),
+                .map(|labels| (NameOrId::Str(labels[0].0.clone()), NameOrId::Str(labels[0].1.clone()))),
             NameOrId::Id(id) => self
                 .rel_entity_ids
                 .get(id)
-                .map(|(src, dst)| (NameOrId::Id(*src), NameOrId::Id(*dst))),
+                .map(|labels| (NameOrId::Id(labels[0].0), NameOrId::Id(labels[0].1))),
         }
     }
 }
@@ -274,10 +274,10 @@ impl From<(Vec<EntityPair>, Vec<RelationTriplet>, Vec<EntityPair>)> for Schema {
                 schema.id_name_rev[1].insert(pair.id, pair.name.clone());
                 schema
                     .rel_entity_ids
-                    .insert(pair.id, (src.id, dst.id));
+                    .insert(pair.id, vec![(src.id, dst.id)]);
                 schema
                     .rel_entity_labels
-                    .insert(pair.name, (src.name, dst.name));
+                    .insert(pair.name, vec![(src.name, dst.name)]);
             }
         }
         if schema.is_column_id {
@@ -387,8 +387,12 @@ impl JsonIO for Schema {
                 if !schema.table_map.contains_key(key) {
                     schema.table_map.insert(key.clone(), rel.id);
                     schema.id_name_rev[1].insert(rel.id, key.clone());
-                    schema.rel_entity_ids.insert(rel.id, (rel.src_id, rel.dst_id));
-                    schema.rel_entity_labels.insert(key.clone(), (rel.src_name, rel.dst_name));
+                    schema
+                        .rel_entity_ids
+                        .insert(rel.id, vec![(rel.src_id, rel.dst_id)]);
+                    schema
+                        .rel_entity_labels
+                        .insert(key.clone(), vec![(rel.src_name, rel.dst_name)]);
                 }
             }
             if schema_pb.is_column_id {

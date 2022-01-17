@@ -98,6 +98,9 @@ mod test {
         plan.append_operator_as_node(sink_opr.into(), vec![3])
             .unwrap();
 
+        println!("{:#?}", plan);
+        println!("{:#?}", plan.plan_meta);
+
         let mut job_builder = JobBuilder::default();
         let mut plan_meta = plan.plan_meta.clone();
         plan.add_job_builder(&mut job_builder, &mut plan_meta)

@@ -28,7 +28,7 @@ use ir_common::NameOrId;
 use vec_map::VecMap;
 
 use crate::error::IrResult;
-use crate::plan::meta::{MetaType, PlanMeta, StoreMeta, STORE_META};
+use crate::plan::meta::{MetaType, NodeMeta, PlanMeta, Schema, StoreMeta, STORE_META};
 use crate::JsonIO;
 
 pub static INVALID_TABLE_ID: i32 = i32::MIN;
@@ -314,13 +314,14 @@ impl LogicalPlan {
         if let Ok(meta) = STORE_META.read() {
             match opr.opr {
                 Some(Opr::Edge(_)) | Some(Opr::Scan(_)) => {
+                    // change current node before appending node
                     self.plan_meta
                         .set_curr_node(self.total_size as u32);
                 }
-                Some(Opr::As(_)) | Some(Opr::Select(_)) | Some(Opr::OrderBy(_)) | Some(Opr::Dedup(_)) => {}
                 Some(Opr::Project(ref proj)) => {
                     is_update_curr = true;
                     if proj.mappings.len() == 1 {
+                        // change current node as the tagged node
                         if let Some(expr) = &proj.mappings[0].expr {
                             if expr.operators.len() == 1 {
                                 if let common_pb::ExprOpr { item: Some(Item::Var(var)) } =
@@ -344,12 +345,19 @@ impl LogicalPlan {
                         }
                     }
                 }
+                Some(Opr::As(_))
+                | Some(Opr::Select(_))
+                | Some(Opr::OrderBy(_))
+                | Some(Opr::Dedup(_))
+                | Some(Opr::Limit(_))
+                | Some(Opr::Sink(_)) => {} // do not change current node
                 _ => is_update_curr = true,
             }
             opr.preprocess(&meta, &mut self.plan_meta)?;
         }
         let new_curr_node = self.append_node(Node::new(self.total_size as u32, opr), parent_ids);
         if new_curr_node < 0 {
+            // append node failed, revert to the old node
             self.plan_meta.set_curr_node(old_curr_node);
         } else {
             if is_update_curr {
@@ -528,10 +536,12 @@ pub trait AsLogical {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()>;
 }
 
-impl AsLogical for common_pb::Property {
-    fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
-        if let Some(prop_key) = &mut self.item {
-            match prop_key {
+fn preprocess_variable(
+    var: &mut common_pb::Variable, meta: &StoreMeta, plan_meta: &mut PlanMeta,
+) -> IrResult<()> {
+    if let Some(property) = var.property.as_mut() {
+        if let Some(key) = property.item.as_mut() {
+            match key {
                 common_pb::property::Item::Key(key) => {
                     if let Some(schema) = &meta.schema {
                         if plan_meta.is_preprocess() && schema.is_column_id() {
@@ -542,193 +552,197 @@ impl AsLogical for common_pb::Property {
                         }
                     }
                     plan_meta
-                        .curr_node_meta_mut()
+                        .tag_node_meta_mut(
+                            var.tag
+                                .clone()
+                                .map(|tag| tag.try_into())
+                                .transpose()?
+                                .as_ref(),
+                        )?
                         .insert_column(key.clone().try_into()?);
                 }
                 _ => {}
             }
         }
-        Ok(())
     }
+
+    Ok(())
 }
 
-impl AsLogical for common_pb::Variable {
-    fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
-        if let Some(property) = self.property.as_mut() {
-            if let Some(key) = property.item.as_mut() {
-                match key {
-                    common_pb::property::Item::Key(key) => {
-                        if let Some(schema) = &meta.schema {
-                            if plan_meta.is_preprocess() && schema.is_column_id() {
-                                *key = schema
-                                    .get_column_id_from_pb(key)
-                                    .unwrap_or(INVALID_COLUMN_ID)
-                                    .into();
-                            }
-                        }
-                        plan_meta
-                            .tag_node_meta_mut(
-                                self.tag
-                                    .clone()
-                                    .map(|tag| tag.try_into())
-                                    .transpose()?
-                                    .as_ref(),
-                            )?
-                            .insert_column(key.clone().try_into()?);
+fn preprocess_const(
+    val: &mut common_pb::Value, meta: &StoreMeta, plan_meta: &mut PlanMeta,
+) -> IrResult<()> {
+    if let Some(schema) = &meta.schema {
+        // A Const needs to be preprocessed only if it is while comparing a label (table)
+        if plan_meta.is_preprocess() && schema.is_table_id() {
+            if let Some(item) = val.item.as_mut() {
+                match item {
+                    common_pb::value::Item::Str(name) => {
+                        let table_id = schema
+                            .get_table_id(name)
+                            .unwrap_or(INVALID_TABLE_ID);
+                        *item = common_pb::value::Item::I32(table_id);
                     }
                     _ => {}
                 }
             }
         }
-
-        Ok(())
     }
+    Ok(())
 }
 
-impl AsLogical for common_pb::Value {
-    fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
-        if let Some(schema) = &meta.schema {
-            // A Const needs to be preprocessed only if it is while comparing a label (table)
-            if plan_meta.is_preprocess() && schema.is_table_id() {
-                if let Some(item) = self.item.as_mut() {
-                    match item {
-                        common_pb::value::Item::Str(name) => {
-                            let table_id = schema
-                                .get_table_id(name)
-                                .unwrap_or(INVALID_TABLE_ID);
-                            *item = common_pb::value::Item::I32(table_id);
+fn preprocess_expression(
+    expr: &mut common_pb::Expression, meta: &StoreMeta, plan_meta: &mut PlanMeta,
+) -> IrResult<()> {
+    let mut count = 0;
+    let mut is_label_eq = false;
+    let mut label_tag: Option<NameOrId> = None;
+    for opr in expr.operators.iter_mut() {
+        if let Some(item) = opr.item.as_mut() {
+            match item {
+                common_pb::expr_opr::Item::Var(var) => {
+                    if let Some(property) = var.property.as_mut() {
+                        if let Some(key) = property.item.as_mut() {
+                            match key {
+                                common_pb::property::Item::Key(key) => {
+                                    count = 0;
+                                    if let Some(schema) = &meta.schema {
+                                        if plan_meta.is_preprocess() && schema.is_column_id() {
+                                            *key = schema
+                                                .get_column_id_from_pb(key)
+                                                .unwrap_or(INVALID_COLUMN_ID)
+                                                .into();
+                                        }
+                                    }
+                                    plan_meta
+                                        .tag_node_meta_mut(
+                                            var.tag
+                                                .clone()
+                                                .map(|tag| tag.try_into())
+                                                .transpose()?
+                                                .as_ref(),
+                                        )?
+                                        .insert_column(key.clone().try_into()?);
+                                }
+                                common_pb::property::Item::Label(_) => {
+                                    count = 1;
+                                    label_tag = var
+                                        .tag
+                                        .clone()
+                                        .map(|tag| tag.try_into())
+                                        .transpose()?;
+                                }
+                                _ => count = 0,
+                            }
                         }
-                        _ => {}
                     }
                 }
-            }
-        }
-        Ok(())
-    }
-}
-
-impl AsLogical for common_pb::Expression {
-    fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
-        let mut count = 0;
-        let mut is_label_eq = false;
-        for opr in self.operators.iter_mut() {
-            if let Some(item) = opr.item.as_mut() {
-                match item {
-                    common_pb::expr_opr::Item::Var(var) => {
-                        if let Some(property) = var.property.as_mut() {
-                            if let Some(key) = property.item.as_mut() {
-                                match key {
-                                    common_pb::property::Item::Key(key) => {
-                                        if let Some(schema) = &meta.schema {
-                                            count = 0;
-                                            if plan_meta.is_preprocess() && schema.is_column_id() {
-                                                *key = schema
-                                                    .get_column_id_from_pb(key)
-                                                    .unwrap_or(INVALID_COLUMN_ID)
-                                                    .into();
-                                            }
-                                        }
-                                        plan_meta
-                                            .tag_node_meta_mut(
-                                                var.tag
-                                                    .clone()
-                                                    .map(|tag| tag.try_into())
-                                                    .transpose()?
-                                                    .as_ref(),
-                                            )?
-                                            .insert_column(key.clone().try_into()?);
-                                    }
-                                    common_pb::property::Item::Label(_) => count = 1,
-                                    _ => count = 0,
-                                }
-                            }
+                common_pb::expr_opr::Item::Logical(l) => {
+                    if count == 1 {
+                        // means previous one is LabelKey
+                        // The logical operator of Eq, Ne, Lt, Le, Gt, Ge
+                        if *l >= 0 && *l <= 5 {
+                            count = 2; // indicates LabelKey <cmp>
                         }
-                    }
-                    common_pb::expr_opr::Item::Logical(l) => {
-                        if count == 1 {
-                            // means previous one is LabelKey
-                            // The logical operator of Eq, Ne, Lt, Le, Gt, Ge
-                            if *l >= 0 && *l <= 5 {
-                                count = 2; // indicates LabelKey <cmp>
-                            }
-                            if *l == 0 {
-                                is_label_eq = true;
-                            }
-                        } else {
-                            count = 0;
+                        if *l == 0 {
+                            is_label_eq = true;
                         }
+                    } else {
+                        count = 0;
                     }
-                    common_pb::expr_opr::Item::Const(c) => {
-                        if count == 2 {
-                            // indicates LabelKey <cmp> labelValue
-                            c.preprocess(meta, plan_meta)?;
+                }
+                common_pb::expr_opr::Item::Const(c) => {
+                    if count == 2 {
+                        // indicates LabelKey <cmp> labelValue
+                        preprocess_const(c, meta, plan_meta)?;
+                        if is_label_eq {
                             let table = match &c.item {
                                 Some(common_pb::value::Item::Str(name)) => name.clone().into(),
                                 Some(common_pb::value::Item::I32(id)) => (*id).into(),
                                 _ => unreachable!(),
                             };
-                            if is_label_eq {
-                                // Add table id into the current node's metadata
-                                plan_meta
-                                    .curr_node_meta_mut()
-                                    .insert_table(table);
-                                is_label_eq = false;
-                            }
+                            // Add table into the current node's metadata
+                            plan_meta
+                                .tag_node_meta_mut(label_tag.as_ref())?
+                                .insert_table(table);
+                            is_label_eq = false;
                         }
-                        count = 0;
                     }
-                    common_pb::expr_opr::Item::Vars(vars) | common_pb::expr_opr::Item::VarMap(vars) => {
-                        for var in &mut vars.keys {
-                            var.preprocess(meta, plan_meta)?;
-                        }
-                        count = 0;
-                    }
-                    _ => count = 0,
+                    count = 0;
                 }
+                common_pb::expr_opr::Item::Vars(vars) | common_pb::expr_opr::Item::VarMap(vars) => {
+                    for var in &mut vars.keys {
+                        preprocess_variable(var, meta, plan_meta)?;
+                    }
+                    count = 0;
+                }
+                _ => count = 0,
             }
         }
-
-        Ok(())
     }
+
+    Ok(())
 }
 
-impl AsLogical for pb::QueryParams {
-    fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
-        if let Some(pred) = &mut self.predicate {
-            pred.preprocess(meta, plan_meta)?;
-        }
-        if let Some(schema) = &meta.schema {
-            if plan_meta.is_preprocess() && schema.is_table_id() {
-                for table in self.table_names.iter_mut() {
-                    let table_id = schema
-                        .get_table_id_from_pb(table)
-                        .unwrap_or(INVALID_TABLE_ID);
-                    *table = table_id.into();
-                }
-            }
-        }
-        for column in self.columns.iter_mut() {
-            if let Some(schema) = &meta.schema {
-                if plan_meta.is_preprocess() && schema.is_column_id() {
-                    *column = schema
-                        .get_column_id_from_pb(column)
-                        .unwrap_or(INVALID_COLUMN_ID)
-                        .into();
-                }
-            }
-            plan_meta
-                .curr_node_meta_mut()
-                .insert_column(column.clone().try_into()?);
-        }
-        Ok(())
+fn preprocess_query_params(
+    query_params: &mut pb::QueryParams, meta: &StoreMeta, plan_meta: &mut PlanMeta,
+    edge_dir_opt: Option<i32>,
+) -> IrResult<()> {
+    if let Some(pred) = &mut query_params.predicate {
+        preprocess_expression(pred, meta, plan_meta)?;
     }
+    if let Some(schema) = &meta.schema {
+        if plan_meta.is_preprocess() && schema.is_table_id() {
+            for table in query_params.table_names.iter_mut() {
+                let table_id = schema
+                    .get_table_id_from_pb(table)
+                    .unwrap_or(INVALID_TABLE_ID);
+                *table = table_id.into();
+
+                let table_key: NameOrId = table.clone().try_into()?;
+                if let Some(dir) = edge_dir_opt {
+                    if let Some((src, dst)) = schema.get_entity_tables(&table_key) {
+                        if dir == 0 {
+                            // out
+                            plan_meta.curr_node_meta_mut().insert_table(dst);
+                        } else if dir == 1 {
+                            // in
+                            plan_meta.curr_node_meta_mut().insert_table(src);
+                        } else {
+                            // both
+                            plan_meta.curr_node_meta_mut().insert_table(src);
+                            plan_meta.curr_node_meta_mut().insert_table(dst);
+                        }
+                    }
+                } else {
+                    plan_meta
+                        .curr_node_meta_mut()
+                        .insert_table(table_key);
+                }
+            }
+        }
+    }
+    for column in query_params.columns.iter_mut() {
+        if let Some(schema) = &meta.schema {
+            if plan_meta.is_preprocess() && schema.is_column_id() {
+                *column = schema
+                    .get_column_id_from_pb(column)
+                    .unwrap_or(INVALID_COLUMN_ID)
+                    .into();
+            }
+        }
+        plan_meta
+            .curr_node_meta_mut()
+            .insert_column(column.clone().try_into()?);
+    }
+    Ok(())
 }
 
 impl AsLogical for pb::Project {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
         for mapping in self.mappings.iter_mut() {
             if let Some(expr) = &mut mapping.expr {
-                expr.preprocess(meta, plan_meta)?;
+                preprocess_expression(expr, meta, plan_meta)?;
             }
         }
         Ok(())
@@ -738,7 +752,7 @@ impl AsLogical for pb::Project {
 impl AsLogical for pb::Select {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
         if let Some(pred) = self.predicate.as_mut() {
-            pred.preprocess(meta, plan_meta)?;
+            preprocess_expression(pred, meta, plan_meta)?;
         }
         Ok(())
     }
@@ -750,24 +764,10 @@ impl AsLogical for pb::Scan {
             .curr_node_meta_mut()
             .set_meta_type(unsafe { std::mem::transmute::<i32, MetaType>(self.scan_opt) });
         if let Some(params) = self.params.as_mut() {
-            params.preprocess(meta, plan_meta)?;
-            for table in &params.table_names {
-                plan_meta
-                    .curr_node_meta_mut()
-                    .insert_table(table.clone().try_into()?);
-            }
+            preprocess_query_params(params, meta, plan_meta, None)?;
         }
         if let Some(index_pred) = self.idx_predicate.as_mut() {
             index_pred.preprocess(meta, plan_meta)?;
-        }
-        Ok(())
-    }
-}
-
-impl AsLogical for pb::ExpandBase {
-    fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
-        if let Some(params) = self.params.as_mut() {
-            params.preprocess(meta, plan_meta)?;
         }
         Ok(())
     }
@@ -785,31 +785,11 @@ impl AsLogical for pb::EdgeExpand {
                 .set_meta_type(MetaType::Entity);
         }
         if let Some(expand) = self.base.as_mut() {
-            expand.preprocess(meta, plan_meta)?;
-            if let Some(params) = &expand.params {
-                for table_pb in &params.table_names {
-                    let table: NameOrId = table_pb.clone().try_into()?;
-                    if self.is_edge {
-                        plan_meta
-                            .curr_node_meta_mut()
-                            .insert_table(table);
-                    } else {
-                        if let Some(schema) = &meta.schema {
-                            if let Some((src, dst)) = schema.get_entity_tables(&table) {
-                                if expand.direction == 0 {
-                                    // out
-                                    plan_meta.curr_node_meta_mut().insert_table(dst);
-                                } else if expand.direction == 1 {
-                                    // in
-                                    plan_meta.curr_node_meta_mut().insert_table(src);
-                                } else {
-                                    // both
-                                    plan_meta.curr_node_meta_mut().insert_table(src);
-                                    plan_meta.curr_node_meta_mut().insert_table(dst);
-                                }
-                            }
-                        }
-                    }
+            if let Some(params) = &mut expand.params {
+                if self.is_edge {
+                    preprocess_query_params(params, meta, plan_meta, None)?;
+                } else {
+                    preprocess_query_params(params, meta, plan_meta, Some(expand.direction))?;
                 }
             }
         }
@@ -833,12 +813,12 @@ impl AsLogical for pb::GroupBy {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
         for mapping in self.mappings.iter_mut() {
             if let Some(key) = &mut mapping.key {
-                key.preprocess(meta, plan_meta)?;
+                preprocess_variable(key, meta, plan_meta)?;
             }
         }
         for agg_fn in self.functions.iter_mut() {
             for var in agg_fn.vars.iter_mut() {
-                var.preprocess(meta, plan_meta)?;
+                preprocess_variable(var, meta, plan_meta)?;
             }
         }
 
@@ -868,7 +848,15 @@ impl AsLogical for pb::IndexPredicate {
                             }
                             common_pb::property::Item::Label(_) => {
                                 if let Some(val) = pred.value.as_mut() {
-                                    val.preprocess(meta, plan_meta)?;
+                                    preprocess_const(val, meta, plan_meta)?;
+                                    let table = match &val.item {
+                                        Some(common_pb::value::Item::Str(name)) => name.clone().into(),
+                                        Some(common_pb::value::Item::I32(id)) => (*id).into(),
+                                        _ => unreachable!(),
+                                    };
+                                    plan_meta
+                                        .curr_node_meta_mut()
+                                        .insert_table(table);
                                 }
                             }
                             _ => {}
@@ -886,7 +874,7 @@ impl AsLogical for pb::OrderBy {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
         for pair in self.pairs.iter_mut() {
             if let Some(key) = &mut pair.key {
-                key.preprocess(meta, plan_meta)?;
+                preprocess_variable(key, meta, plan_meta)?;
             }
         }
 
@@ -903,12 +891,43 @@ impl AsLogical for pb::Limit {
 impl AsLogical for pb::Join {
     fn preprocess(&mut self, meta: &StoreMeta, plan_meta: &mut PlanMeta) -> IrResult<()> {
         for left_key in self.left_keys.iter_mut() {
-            left_key.preprocess(meta, plan_meta)?
+            preprocess_variable(left_key, meta, plan_meta)?;
         }
         for right_key in self.right_keys.iter_mut() {
-            right_key.preprocess(meta, plan_meta)?
+            preprocess_variable(right_key, meta, plan_meta)?
         }
         Ok(())
+    }
+}
+
+fn insert_id_name_mappings(
+    id_name_mappings: &mut BTreeSet<(i32, String, i32)>, schema: &Schema, node_meta: &NodeMeta,
+) {
+    let ty = node_meta.get_meta_type();
+    if node_meta.get_tables().is_empty() {
+        for (&id, name) in schema.get_table_names(ty) {
+            id_name_mappings
+                .insert((id, name.clone(), unsafe { std::mem::transmute::<MetaType, i32>(ty) }));
+        }
+    } else {
+        for table in node_meta.get_tables() {
+            match table {
+                NameOrId::Id(table_id) => {
+                    id_name_mappings.insert((
+                        *table_id,
+                        schema
+                            .get_table_names(ty)
+                            .get(table_id)
+                            .cloned()
+                            .unwrap_or("invalid_table_name".to_string()),
+                        unsafe { std::mem::transmute::<MetaType, i32>(ty) },
+                    ));
+                }
+                _ => {
+                    unreachable!()
+                }
+            }
+        }
     }
 }
 
@@ -922,32 +941,18 @@ impl AsLogical for pb::Sink {
             return Ok(());
         }
         let mut id_name_mappings = BTreeSet::<(i32, String, i32)>::new();
-        for (_, node_meta) in plan_meta.get_all_node_metas().iter() {
-            let ty = node_meta.get_meta_type();
-            if node_meta.get_tables().is_empty() {
-                for (&id, name) in schema.get_table_names(ty) {
-                    id_name_mappings
-                        .insert((id, name.clone(), unsafe { std::mem::transmute::<MetaType, i32>(ty) }));
-                }
-            } else {
-                for table in node_meta.get_tables() {
-                    match table {
-                        NameOrId::Id(table_id) => {
-                            id_name_mappings.insert((
-                                *table_id,
-                                schema
-                                    .get_table_names(ty)
-                                    .get(table_id)
-                                    .cloned()
-                                    .unwrap_or("invalid_table_name".to_string()),
-                                unsafe { std::mem::transmute::<MetaType, i32>(ty) },
-                            ));
-                        }
-                        _ => {
-                            unreachable!()
-                        }
-                    }
-                }
+        if self.sink_current {
+            if let Some(node_meta) = plan_meta.curr_node_meta() {
+                insert_id_name_mappings(&mut id_name_mappings, schema, node_meta);
+            }
+        }
+        for tag in &self.tags {
+            let tag_key = tag.clone().try_into()?;
+            if let Some(node_meta) = plan_meta
+                .get_tag_node(&tag_key)
+                .and_then(|node| plan_meta.get_node_meta(node))
+            {
+                insert_id_name_mappings(&mut id_name_mappings, schema, node_meta);
             }
         }
         for (id, name, meta_type) in id_name_mappings.into_iter() {
@@ -1201,7 +1206,11 @@ mod test {
         plan_meta.insert_tag_node("b".into(), 2);
 
         set_schema_simple(
-            vec![("person".to_string(), 0).into(), ("software".to_string(), 1).into()],
+            vec![
+                ("person".to_string(), 0).into(),
+                ("software".to_string(), 1).into(),
+                ("project".to_string(), 2).into(),
+            ],
             vec![
                 (
                     ("knows".to_string(), 0).into(),
@@ -1223,9 +1232,7 @@ mod test {
             ],
         );
         let mut expression = str_to_expr_pb("@.~label == \"person\"".to_string()).unwrap();
-        expression
-            .preprocess(&STORE_META.read().unwrap(), &mut plan_meta)
-            .unwrap();
+        preprocess_expression(&mut expression, &STORE_META.read().unwrap(), &mut plan_meta).unwrap();
         let opr = expression.operators.get(2).unwrap().clone();
         match opr.item.unwrap() {
             common_pb::expr_opr::Item::Const(val) => match val.item.unwrap() {
@@ -1237,9 +1244,7 @@ mod test {
 
         let mut expression =
             str_to_expr_pb("(@.name == \"person\") && @a.~label == \"knows\"".to_string()).unwrap();
-        expression
-            .preprocess(&STORE_META.read().unwrap(), &mut plan_meta)
-            .unwrap();
+        preprocess_expression(&mut expression, &STORE_META.read().unwrap(), &mut plan_meta).unwrap();
         // person should not be mapped, as name is not a label key
         let opr = expression.operators.get(3).unwrap().clone();
         match opr.item.unwrap() {
@@ -1273,9 +1278,7 @@ mod test {
 
         // name maps to 1
         let mut expression = str_to_expr_pb("@a.name == \"John\"".to_string()).unwrap();
-        expression
-            .preprocess(&STORE_META.read().unwrap(), &mut plan_meta)
-            .unwrap();
+        preprocess_expression(&mut expression, &STORE_META.read().unwrap(), &mut plan_meta).unwrap();
         let opr = expression.operators.get(0).unwrap().clone();
         match opr.item.unwrap() {
             common_pb::expr_opr::Item::Var(var) => {
@@ -1301,9 +1304,7 @@ mod test {
         );
 
         let mut expression = str_to_expr_pb("{@a.name, @b.id}".to_string()).unwrap();
-        expression
-            .preprocess(&STORE_META.read().unwrap(), &mut plan_meta)
-            .unwrap();
+        preprocess_expression(&mut expression, &STORE_META.read().unwrap(), &mut plan_meta).unwrap();
         let opr = expression.operators.get(0).unwrap().clone();
         match opr.item.unwrap() {
             common_pb::expr_opr::Item::VarMap(vars) => {
@@ -1352,7 +1353,11 @@ mod test {
         plan_meta.set_preprocess(true);
         plan_meta.insert_tag_node("a".into(), 1);
         set_schema_simple(
-            vec![("person".to_string(), 0).into(), ("software".to_string(), 1).into()],
+            vec![
+                ("person".to_string(), 0).into(),
+                ("software".to_string(), 1).into(),
+                ("project".to_string(), 2).into(),
+            ],
             vec![
                 (
                     ("knows".to_string(), 0).into(),
@@ -1760,6 +1765,143 @@ mod test {
                 .unwrap()
                 .get_columns(),
             &vec!["age".into(), "id".into(), "name".into()]
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+        );
+    }
+
+    #[test]
+    fn test_label_maintenance() {
+        let mut plan_meta = PlanMeta::default();
+        plan_meta.set_preprocess(true);
+        plan_meta.insert_tag_node("a".into(), 1);
+        set_schema_simple(
+            vec![
+                ("person".to_string(), 0).into(),
+                ("software".to_string(), 1).into(),
+                ("project".to_string(), 2).into(),
+            ],
+            vec![
+                (
+                    ("knows".to_string(), 0).into(),
+                    ("person".to_string(), 0).into(),
+                    ("person".to_string(), 0).into(),
+                )
+                    .into(),
+                (
+                    ("creates".to_string(), 1).into(),
+                    ("person".to_string(), 0).into(),
+                    ("software".to_string(), 1).into(),
+                )
+                    .into(),
+            ],
+            vec![
+                ("id".to_string(), 0).into(),
+                ("name".to_string(), 1).into(),
+                ("age".to_string(), 2).into(),
+            ],
+        );
+
+        let mut scan = pb::Scan {
+            scan_opt: 0,
+            alias: None,
+            params: Some(pb::QueryParams {
+                table_names: vec!["person".into()], // label will be captured
+                columns: vec![],
+                limit: None,
+                // label will be captured
+                predicate: Some(
+                    str_to_expr_pb("@.~label == \"project\" && @.age == 10".to_string()).unwrap(),
+                ),
+                requirements: vec![],
+            }),
+            // label will be captured
+            idx_predicate: Some(vec!["software".to_string()].into()),
+        };
+        scan.preprocess(&STORE_META.read().unwrap(), &mut plan_meta)
+            .unwrap();
+
+        assert_eq!(
+            plan_meta.curr_node_meta().unwrap().get_tables(),
+            &vec![0.into(), 1.into(), 2.into()]
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+        );
+
+        let mut expand = pb::EdgeExpand {
+            base: Some(pb::ExpandBase {
+                v_tag: None,
+                direction: 0,
+                params: Some(pb::QueryParams {
+                    table_names: vec!["creates".into()],
+                    columns: vec![],
+                    limit: None,
+                    predicate: None,
+                    requirements: vec![]
+                })
+            }),
+            is_edge: true,
+            alias: None
+        };
+        plan_meta.set_curr_node(1);
+        expand.preprocess(&STORE_META.read().unwrap(), &mut plan_meta)
+            .unwrap();
+
+        assert_eq!(
+            plan_meta.curr_node_meta().unwrap().get_tables(),
+            &vec![1.into()]
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+        );
+
+        let mut expand = pb::EdgeExpand {
+            base: Some(pb::ExpandBase {
+                v_tag: None,
+                direction: 2,  // both
+                params: Some(pb::QueryParams {
+                    table_names: vec!["creates".into()],
+                    columns: vec![],
+                    limit: None,
+                    predicate: None,
+                    requirements: vec![]
+                })
+            }),
+            is_edge: true,
+            alias: None
+        };
+        plan_meta.set_curr_node(1);
+        expand.preprocess(&STORE_META.read().unwrap(), &mut plan_meta)
+            .unwrap();
+
+        assert_eq!(
+            plan_meta.curr_node_meta().unwrap().get_tables(),
+            &vec![1.into()]
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+        );
+
+        let mut expand = pb::EdgeExpand {
+            base: Some(pb::ExpandBase {
+                v_tag: None,
+                direction: 2,
+                params: Some(pb::QueryParams {
+                    table_names: vec!["creates".into()],
+                    columns: vec![],
+                    limit: None,
+                    predicate: None,
+                    requirements: vec![]
+                })
+            }),
+            is_edge: false,
+            alias: None
+        };
+        plan_meta.set_curr_node(2);
+        expand.preprocess(&STORE_META.read().unwrap(), &mut plan_meta)
+            .unwrap();
+
+        assert_eq!(
+            plan_meta.curr_node_meta().unwrap().get_tables(),
+            &vec![0.into(), 1.into()]  // person, software
                 .into_iter()
                 .collect::<BTreeSet<_>>()
         );
