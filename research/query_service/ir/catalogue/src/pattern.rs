@@ -16,7 +16,7 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Direction {
     Out = 0,
     Incoming,
@@ -28,7 +28,7 @@ struct PatternVertex {
     label: u64,
     order: u64,
     connect_edges: BTreeMap<u64, (u64, Direction)>,
-    connect_vertices: BTreeMap<u64, (u64, Direction)>,
+    connect_vertices: BTreeMap<u64, Vec<(u64, Direction)>>,
     out_degree: u64,
     in_degree: u64,
 }
@@ -183,9 +183,11 @@ impl From<Vec<PatternEdge>> for Pattern {
                     start_vertex
                         .connect_edges
                         .insert(edge.index, (edge.end_v_index, Direction::Out));
-                    start_vertex
+                    let start_vertex_connect_vertices_vec = start_vertex
                         .connect_vertices
-                        .insert(edge.end_v_index, (edge.index, Direction::Out));
+                        .entry(edge.end_v_index)
+                        .or_insert(Vec::new());
+                    start_vertex_connect_vertices_vec.push((edge.index, Direction::Out));
                     start_vertex.out_degree += 1;
                 }
                 // the start vertex not existed, add to the new Pattern
@@ -202,12 +204,17 @@ impl From<Vec<PatternEdge>> for Pattern {
                             )]),
                             connect_vertices: BTreeMap::from([(
                                 edge.end_v_index,
-                                (edge.index, Direction::Out),
+                                vec![(edge.index, Direction::Out)],
                             )]),
                             out_degree: 1,
                             in_degree: 0,
                         },
                     );
+                    let vertex_set = new_pattern
+                        .vertex_label_map
+                        .entry(edge.start_v_label)
+                        .or_insert(BTreeSet::new());
+                    vertex_set.insert(edge.start_v_index);
                 }
             }
             match new_pattern.vertices.get_mut(&edge.end_v_index) {
@@ -216,9 +223,11 @@ impl From<Vec<PatternEdge>> for Pattern {
                     end_vertex
                         .connect_edges
                         .insert(edge.index, (edge.start_v_index, Direction::Incoming));
-                    end_vertex
+                    let end_vertex_connect_vertices_vec = end_vertex
                         .connect_vertices
-                        .insert(edge.start_v_index, (edge.index, Direction::Incoming));
+                        .entry(edge.start_v_index)
+                        .or_insert(Vec::new());
+                    end_vertex_connect_vertices_vec.push((edge.index, Direction::Incoming));
                     end_vertex.in_degree += 1;
                 }
                 // the end vertex not existed, add the new Pattern
@@ -235,12 +244,17 @@ impl From<Vec<PatternEdge>> for Pattern {
                             )]),
                             connect_vertices: BTreeMap::from([(
                                 edge.start_v_index,
-                                (edge.index, Direction::Incoming),
+                                vec![(edge.index, Direction::Incoming)],
                             )]),
                             out_degree: 0,
                             in_degree: 1,
                         },
                     );
+                    let vertex_set = new_pattern
+                        .vertex_label_map
+                        .entry(edge.end_v_label)
+                        .or_insert(BTreeSet::new());
+                    vertex_set.insert(edge.end_v_index);
                 }
             }
         }
@@ -250,8 +264,100 @@ impl From<Vec<PatternEdge>> for Pattern {
 
 #[cfg(test)]
 mod tests {
+    use super::Direction;
+    use super::Pattern;
+    use super::PatternEdge;
+    use super::PatternVertex;
+
+    fn build_pattern_case1() -> Pattern {
+        let pattern_edge1 = PatternEdge {
+            index: 0,
+            label: 0,
+            start_v_index: 0,
+            end_v_index: 1,
+            start_v_label: 0,
+            end_v_label: 0,
+        };
+        let pattern_edge2 = PatternEdge {
+            index: 1,
+            label: 0,
+            start_v_index: 1,
+            end_v_index: 0,
+            start_v_label: 0,
+            end_v_label: 0,
+        };
+        let pattern_vec = vec![pattern_edge1, pattern_edge2];
+        Pattern::from(pattern_vec)
+    }
+
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn test_pattern_case1_structure() {
+        let pattern_case1 = build_pattern_case1();
+        let edges_num = pattern_case1.edges.len();
+        assert_eq!(edges_num, 2);
+        let vertices_num = pattern_case1.vertices.len();
+        assert_eq!(vertices_num, 2);
+        let edges_with_label_0 = pattern_case1.edge_label_map.get(&0).unwrap();
+        assert_eq!(edges_with_label_0.len(), 2);
+        let mut edges_with_label_0_iter = edges_with_label_0.iter();
+        assert_eq!(*edges_with_label_0_iter.next().unwrap(), 0);
+        assert_eq!(*edges_with_label_0_iter.next().unwrap(), 1);
+        let vertices_with_label_0 = pattern_case1.vertex_label_map.get(&0).unwrap();
+        assert_eq!(vertices_with_label_0.len(), 2);
+        let mut vertices_with_label_0_iter = vertices_with_label_0.iter();
+        assert_eq!(*vertices_with_label_0_iter.next().unwrap(), 0);
+        assert_eq!(*vertices_with_label_0_iter.next().unwrap(), 1);
+        let edge_0 = pattern_case1.edges.get(&0).unwrap();
+        assert_eq!(edge_0.index, 0);
+        assert_eq!(edge_0.label, 0);
+        assert_eq!(edge_0.start_v_index, 0);
+        assert_eq!(edge_0.end_v_index, 1);
+        assert_eq!(edge_0.start_v_label, 0);
+        assert_eq!(edge_0.end_v_label, 0);
+        let edge_1 = pattern_case1.edges.get(&1).unwrap();
+        assert_eq!(edge_1.index, 1);
+        assert_eq!(edge_1.label, 0);
+        assert_eq!(edge_1.start_v_index, 1);
+        assert_eq!(edge_1.end_v_index, 0);
+        assert_eq!(edge_1.start_v_label, 0);
+        assert_eq!(edge_1.end_v_label, 0);
+        let vertex_0 = pattern_case1.vertices.get(&0).unwrap();
+        assert_eq!(vertex_0.index, 0);
+        assert_eq!(vertex_0.label, 0);
+        assert_eq!(vertex_0.connect_edges.len(), 2);
+        let mut vertex_0_connect_edges_iter = vertex_0.connect_edges.iter();
+        let (v0_e0, (v0_v0, v0_d0)) = vertex_0_connect_edges_iter.next().unwrap();
+        assert_eq!(*v0_e0, 0);
+        assert_eq!(*v0_v0, 1);
+        assert_eq!(*v0_d0, Direction::Out);
+        let (v0_e1, (v0_v1, v0_d1)) = vertex_0_connect_edges_iter.next().unwrap();
+        assert_eq!(*v0_e1, 1);
+        assert_eq!(*v0_v1, 1);
+        assert_eq!(*v0_d1, Direction::Incoming);
+        assert_eq!(vertex_0.connect_vertices.len(), 1);
+        let v0_v1_connected_edges = vertex_0.connect_vertices.get(&1).unwrap();
+        assert_eq!(v0_v1_connected_edges.len(), 2);
+        let mut v0_v1_connected_edges_iter = v0_v1_connected_edges.iter();
+        assert_eq!(*v0_v1_connected_edges_iter.next().unwrap(), (0, Direction::Out));
+        assert_eq!(*v0_v1_connected_edges_iter.next().unwrap(), (1, Direction::Incoming));
+        let vertex_1 = pattern_case1.vertices.get(&1).unwrap();
+        assert_eq!(vertex_1.index, 1);
+        assert_eq!(vertex_1.label, 0);
+        assert_eq!(vertex_1.connect_edges.len(), 2);
+        let mut vertex_1_connect_edges_iter = vertex_1.connect_edges.iter();
+        let (v1_e0, (v1_v0, v1_d0)) = vertex_1_connect_edges_iter.next().unwrap();
+        assert_eq!(*v1_e0, 0);
+        assert_eq!(*v1_v0, 0);
+        assert_eq!(*v1_d0, Direction::Incoming);
+        let (v1_e1, (v1_v1, v1_d1)) = vertex_1_connect_edges_iter.next().unwrap();
+        assert_eq!(*v1_e1, 1);
+        assert_eq!(*v1_v1, 0);
+        assert_eq!(*v1_d1, Direction::Out);
+        assert_eq!(vertex_1.connect_vertices.len(), 1);
+        let v1_v0_connected_edges = vertex_1.connect_vertices.get(&0).unwrap();
+        assert_eq!(v1_v0_connected_edges.len(), 2);
+        let mut v1_v0_connected_edges_iter = v1_v0_connected_edges.iter();
+        assert_eq!(*v1_v0_connected_edges_iter.next().unwrap(), (0, Direction::Incoming));
+        assert_eq!(*v1_v0_connected_edges_iter.next().unwrap(), (1, Direction::Out));
     }
 }

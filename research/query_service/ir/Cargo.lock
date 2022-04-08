@@ -1082,6 +1082,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ir_catalogue"
+version = "0.1.0"
+dependencies = [
+ "dyn_type",
+ "env_logger 0.9.0",
+ "ir_common",
+ "ir_core",
+ "lazy_static 1.4.0",
+ "log 0.4.16",
+ "pegasus",
+ "pegasus_client",
+ "pegasus_server",
+ "prost 0.9.0",
+ "runtime",
+ "serde",
+ "serde_json",
+ "vec_map",
+]
+
+[[package]]
 name = "ir_common"
 version = "0.1.0"
 dependencies = [
