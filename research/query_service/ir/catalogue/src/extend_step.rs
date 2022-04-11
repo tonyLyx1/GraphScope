@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 
 use super::pattern::Direction;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendEdge {
     pub start_v_label: u64,
     pub start_v_index: u64,
@@ -51,5 +51,58 @@ impl From<Vec<ExtendEdge>> for ExtendStep {
             edge_vec.push(edge);
         }
         new_extend_step
+    }
+}
+
+mod tests {
+    use super::Direction;
+    use super::ExtendEdge;
+    use super::ExtendStep;
+
+    fn build_extend_step_case1() -> ExtendStep {
+        let extend_edge0 = ExtendEdge {
+            start_v_label: 1,
+            start_v_index: 0,
+            target_v_label: 1,
+            edge_label: 1,
+            dir: Direction::Out,
+        };
+        let extend_edge1 = extend_edge0.clone();
+        ExtendStep::from(vec![extend_edge0, extend_edge1])
+    }
+
+    #[test]
+    fn test_extend_step_case1_structure() {
+        let extend_step1 = build_extend_step_case1();
+        assert_eq!(extend_step1.target_v_label, 1);
+        assert_eq!(extend_step1.extend_edges.len(), 1);
+        assert_eq!(
+            extend_step1
+                .extend_edges
+                .get(&(1, 0))
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            extend_step1.extend_edges.get(&(1, 0)).unwrap()[0],
+            ExtendEdge {
+                start_v_label: 1,
+                start_v_index: 0,
+                target_v_label: 1,
+                edge_label: 1,
+                dir: Direction::Out
+            }
+        );
+        assert_eq!(
+            extend_step1.extend_edges.get(&(1, 0)).unwrap()[1],
+            ExtendEdge {
+                start_v_label: 1,
+                start_v_index: 0,
+                target_v_label: 1,
+                edge_label: 1,
+                dir: Direction::Out
+            }
+        );
     }
 }

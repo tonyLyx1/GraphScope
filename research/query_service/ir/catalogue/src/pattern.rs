@@ -284,6 +284,35 @@ impl Pattern {
     }
 }
 
+// Initialize a Pattern containing only one vertex from hte vertex's id and label
+impl From<(u64, u64)> for Pattern {
+    fn from((vertex_id, vertex_label): (u64, u64)) -> Pattern {
+        let vertex = PatternVertex {
+            id: vertex_id,
+            label: vertex_label,
+            index: 0,
+            connect_edges: BTreeMap::new(),
+            connect_vertices: BTreeMap::new(),
+            out_degree: 0,
+            in_degree: 0,
+        };
+        Pattern::from(vertex)
+    }
+}
+
+// Initialze a Pattern from just a single Pattern Vertex
+impl From<PatternVertex> for Pattern {
+    fn from(vertex: PatternVertex) -> Pattern {
+        Pattern {
+            edges: BTreeMap::new(),
+            vertices: BTreeMap::from([(vertex.id, vertex.clone())]),
+            edge_label_map: HashMap::new(),
+            vertex_label_map: HashMap::from([(vertex.label, BTreeSet::from([vertex.id]))]),
+        }
+    }
+}
+
+// Initialize a Pattern from a vertor of Pattern Edges
 impl From<Vec<PatternEdge>> for Pattern {
     fn from(edges: Vec<PatternEdge>) -> Pattern {
         if edges.len() == 0 {
