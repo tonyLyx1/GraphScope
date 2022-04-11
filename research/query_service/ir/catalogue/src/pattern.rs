@@ -37,8 +37,8 @@ struct PatternVertex {
 struct PatternEdge {
     id: u64,
     label: u64,
-    start_v_index: u64,
-    end_v_index: u64,
+    start_v_id: u64,
+    end_v_id: u64,
     start_v_label: u64,
     end_v_label: u64,
 }
@@ -72,13 +72,13 @@ impl Pattern {
     /// else if equal, move to next comparison step:
     /// if e1's end vertex label is less than e2's ,then e1 < e2, vice versa,
     /// else if equal, move to next comparison step:
-    /// if e1's start vertex's order is less than e2's then e1 < e2, vice versa,
+    /// if e1's start vertex's id is less than e2's then e1 < e2, vice versa,
     /// else if equal, move to next comparison step:
-    /// if e1's end vertex's order is less than e2's ,then e1 < e2, vice versa,
+    /// if e1's end vertex's id is less than e2's ,then e1 < e2, vice versa,
     /// else if equal, move to next comparison step:
-    fn cmp_edges(&self, e1_index: u64, e2_index: u64) -> Ordering {
-        let e1 = self.edges.get(&e1_index).unwrap();
-        let e2 = self.edges.get(&e2_index).unwrap();
+    fn cmp_edges(&self, e1_id: u64, e2_id: u64) -> Ordering {
+        let e1 = self.edges.get(&e1_id).unwrap();
+        let e2 = self.edges.get(&e2_id).unwrap();
         match e1.label.cmp(&e2.label) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
@@ -94,32 +94,32 @@ impl Pattern {
             Ordering::Greater => return Ordering::Greater,
             _ => (),
         }
-        let e1_start_order = self
+        let e1_start_index = self
             .vertices
-            .get(&e1.start_v_index)
+            .get(&e1.start_v_id)
             .unwrap()
             .index;
-        let e2_start_order = self
+        let e2_start_index = self
             .vertices
-            .get(&e2.start_v_index)
+            .get(&e2.start_v_id)
             .unwrap()
             .index;
-        match e1_start_order.cmp(&e2_start_order) {
+        match e1_start_index.cmp(&e2_start_index) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
         }
-        let e1_end_order = self
+        let e1_end_index = self
             .vertices
-            .get(&e1.end_v_index)
+            .get(&e1.end_v_id)
             .unwrap()
             .index;
-        let e2_end_order = self
+        let e2_end_index = self
             .vertices
-            .get(&e2.end_v_index)
+            .get(&e2.end_v_id)
             .unwrap()
             .index;
-        match e1_end_order.cmp(&e2_end_order) {
+        match e1_end_index.cmp(&e2_end_index) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
@@ -128,32 +128,32 @@ impl Pattern {
     }
 
     /// Get a vector of ordered edges's indexes of a Pattern
-    /// The comparison is based on the `cmp_edges` method above to get the order
+    /// The comparison is based on the `cmp_edges` method above to get the Order
     fn get_ordered_edges(&self) -> Vec<u64> {
         let mut ordered_edges = Vec::new();
         for (&edge, _) in &self.edges {
             ordered_edges.push(edge);
         }
-        ordered_edges.sort_by(|e1_index, e2_index| self.cmp_edges(*e1_index, *e2_index));
+        ordered_edges.sort_by(|e1_id, e2_id| self.cmp_edges(*e1_id, *e2_id));
         ordered_edges
     }
 
     /// Get a edge encode unit of a PatternEdge
     /// The unit contains 5 components:
     /// (edge's label, start vertex's label, end vertex's label, start vertex's label, end vertex's label)
-    fn get_edge_encode_unit(&self, edge_index: u64) -> (u64, u64, u64, u64, u64) {
-        let edge = self.edges.get(&edge_index).unwrap();
-        let start_v_order = self
+    fn get_edge_encode_unit(&self, edge_id: u64) -> (u64, u64, u64, u64, u64) {
+        let edge = self.edges.get(&edge_id).unwrap();
+        let start_v_index = self
             .vertices
-            .get(&edge.start_v_index)
+            .get(&edge.start_v_id)
             .unwrap()
             .index;
-        let end_v_order = self
+        let end_v_index = self
             .vertices
-            .get(&edge.end_v_index)
+            .get(&edge.end_v_id)
             .unwrap()
             .index;
-        (edge_index, edge.start_v_label, edge.end_v_label, start_v_order, end_v_order)
+        (edge_id, edge.start_v_label, edge.end_v_label, start_v_index, end_v_index)
     }
 }
 
@@ -176,16 +176,16 @@ impl From<Vec<PatternEdge>> for Pattern {
             // Add or update the start & end vertex to the new Pattern
             match new_pattern
                 .vertices
-                .get_mut(&edge.start_v_index)
+                .get_mut(&edge.start_v_id)
             {
                 // the start vertex existed, just update the connection info
                 Some(start_vertex) => {
                     start_vertex
                         .connect_edges
-                        .insert(edge.id, (edge.end_v_index, Direction::Out));
+                        .insert(edge.id, (edge.end_v_id, Direction::Out));
                     let start_vertex_connect_vertices_vec = start_vertex
                         .connect_vertices
-                        .entry(edge.end_v_index)
+                        .entry(edge.end_v_id)
                         .or_insert(Vec::new());
                     start_vertex_connect_vertices_vec.push((edge.id, Direction::Out));
                     start_vertex.out_degree += 1;
@@ -193,17 +193,17 @@ impl From<Vec<PatternEdge>> for Pattern {
                 // the start vertex not existed, add to the new Pattern
                 None => {
                     new_pattern.vertices.insert(
-                        edge.start_v_index,
+                        edge.start_v_id,
                         PatternVertex {
-                            id: edge.start_v_index,
+                            id: edge.start_v_id,
                             label: edge.start_v_label,
                             index: 0,
                             connect_edges: BTreeMap::from([(
                                 edge.id,
-                                (edge.end_v_index, Direction::Out),
+                                (edge.end_v_id, Direction::Out),
                             )]),
                             connect_vertices: BTreeMap::from([(
-                                edge.end_v_index,
+                                edge.end_v_id,
                                 vec![(edge.id, Direction::Out)],
                             )]),
                             out_degree: 1,
@@ -214,18 +214,18 @@ impl From<Vec<PatternEdge>> for Pattern {
                         .vertex_label_map
                         .entry(edge.start_v_label)
                         .or_insert(BTreeSet::new());
-                    vertex_set.insert(edge.start_v_index);
+                    vertex_set.insert(edge.start_v_id);
                 }
             }
-            match new_pattern.vertices.get_mut(&edge.end_v_index) {
+            match new_pattern.vertices.get_mut(&edge.end_v_id) {
                 // the end vertex existed, just update the connection info
                 Some(end_vertex) => {
                     end_vertex
                         .connect_edges
-                        .insert(edge.id, (edge.start_v_index, Direction::Incoming));
+                        .insert(edge.id, (edge.start_v_id, Direction::Incoming));
                     let end_vertex_connect_vertices_vec = end_vertex
                         .connect_vertices
-                        .entry(edge.start_v_index)
+                        .entry(edge.start_v_id)
                         .or_insert(Vec::new());
                     end_vertex_connect_vertices_vec.push((edge.id, Direction::Incoming));
                     end_vertex.in_degree += 1;
@@ -233,17 +233,17 @@ impl From<Vec<PatternEdge>> for Pattern {
                 // the end vertex not existed, add the new Pattern
                 None => {
                     new_pattern.vertices.insert(
-                        edge.end_v_index,
+                        edge.end_v_id,
                         PatternVertex {
-                            id: edge.end_v_index,
+                            id: edge.end_v_id,
                             label: edge.end_v_label,
                             index: 0,
                             connect_edges: BTreeMap::from([(
                                 edge.id,
-                                (edge.start_v_index, Direction::Incoming),
+                                (edge.start_v_id, Direction::Incoming),
                             )]),
                             connect_vertices: BTreeMap::from([(
-                                edge.start_v_index,
+                                edge.start_v_id,
                                 vec![(edge.id, Direction::Incoming)],
                             )]),
                             out_degree: 0,
@@ -254,7 +254,7 @@ impl From<Vec<PatternEdge>> for Pattern {
                         .vertex_label_map
                         .entry(edge.end_v_label)
                         .or_insert(BTreeSet::new());
-                    vertex_set.insert(edge.end_v_index);
+                    vertex_set.insert(edge.end_v_id);
                 }
             }
         }
@@ -273,16 +273,16 @@ mod tests {
         let pattern_edge1 = PatternEdge {
             id: 0,
             label: 0,
-            start_v_index: 0,
-            end_v_index: 1,
+            start_v_id: 0,
+            end_v_id: 1,
             start_v_label: 0,
             end_v_label: 0,
         };
         let pattern_edge2 = PatternEdge {
             id: 1,
             label: 0,
-            start_v_index: 1,
-            end_v_index: 0,
+            start_v_id: 1,
+            end_v_id: 0,
             start_v_label: 0,
             end_v_label: 0,
         };
@@ -310,15 +310,15 @@ mod tests {
         let edge_0 = pattern_case1.edges.get(&0).unwrap();
         assert_eq!(edge_0.id, 0);
         assert_eq!(edge_0.label, 0);
-        assert_eq!(edge_0.start_v_index, 0);
-        assert_eq!(edge_0.end_v_index, 1);
+        assert_eq!(edge_0.start_v_id, 0);
+        assert_eq!(edge_0.end_v_id, 1);
         assert_eq!(edge_0.start_v_label, 0);
         assert_eq!(edge_0.end_v_label, 0);
         let edge_1 = pattern_case1.edges.get(&1).unwrap();
         assert_eq!(edge_1.id, 1);
         assert_eq!(edge_1.label, 0);
-        assert_eq!(edge_1.start_v_index, 1);
-        assert_eq!(edge_1.end_v_index, 0);
+        assert_eq!(edge_1.start_v_id, 1);
+        assert_eq!(edge_1.end_v_id, 0);
         assert_eq!(edge_1.start_v_label, 0);
         assert_eq!(edge_1.end_v_label, 0);
         let vertex_0 = pattern_case1.vertices.get(&0).unwrap();
