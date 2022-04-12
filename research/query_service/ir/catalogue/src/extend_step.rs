@@ -21,9 +21,17 @@ use super::pattern::Direction;
 pub struct ExtendEdge {
     pub start_v_label: u64,
     pub start_v_index: u64,
-    pub target_v_label: u64,
     pub edge_label: u64,
     pub dir: Direction,
+}
+
+impl ExtendEdge {
+    fn to_encode_unit(&self) -> (u64, u64, u64, u8) {
+        match self.dir {
+            Direction::Out => (self.start_v_label, self.start_v_index, self.start_v_label, 0),
+            Direction::Incoming => (self.start_v_label, self.start_v_index, self.start_v_label, 1),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -33,17 +41,10 @@ pub struct ExtendStep {
     pub extend_edges: BTreeMap<(u64, u64), Vec<ExtendEdge>>,
 }
 
-impl From<Vec<ExtendEdge>> for ExtendStep {
-    fn from(edges: Vec<ExtendEdge>) -> ExtendStep {
-        if edges.len() == 0 {
-            panic!("There should be at least one extend edge for a extend step!")
-        }
-        let target_v_label = edges[0].target_v_label;
+impl From<(u64, Vec<ExtendEdge>)> for ExtendStep {
+    fn from((target_v_label, edges): (u64, Vec<ExtendEdge>)) -> ExtendStep {
         let mut new_extend_step = ExtendStep { target_v_label, extend_edges: BTreeMap::new() };
         for edge in edges {
-            if edge.target_v_label != target_v_label {
-                panic!("All extend edge should have the same target vertex label!")
-            }
             let edge_vec = new_extend_step
                 .extend_edges
                 .entry((edge.start_v_label, edge.start_v_index))
@@ -54,21 +55,17 @@ impl From<Vec<ExtendEdge>> for ExtendStep {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::Direction;
     use super::ExtendEdge;
     use super::ExtendStep;
 
     fn build_extend_step_case1() -> ExtendStep {
-        let extend_edge0 = ExtendEdge {
-            start_v_label: 1,
-            start_v_index: 0,
-            target_v_label: 1,
-            edge_label: 1,
-            dir: Direction::Out,
-        };
+        let extend_edge0 =
+            ExtendEdge { start_v_label: 1, start_v_index: 0, edge_label: 1, dir: Direction::Out };
         let extend_edge1 = extend_edge0.clone();
-        ExtendStep::from(vec![extend_edge0, extend_edge1])
+        ExtendStep::from((1, vec![extend_edge0, extend_edge1]))
     }
 
     #[test]
@@ -86,23 +83,11 @@ mod tests {
         );
         assert_eq!(
             extend_step1.extend_edges.get(&(1, 0)).unwrap()[0],
-            ExtendEdge {
-                start_v_label: 1,
-                start_v_index: 0,
-                target_v_label: 1,
-                edge_label: 1,
-                dir: Direction::Out
-            }
+            ExtendEdge { start_v_label: 1, start_v_index: 0, edge_label: 1, dir: Direction::Out }
         );
         assert_eq!(
             extend_step1.extend_edges.get(&(1, 0)).unwrap()[1],
-            ExtendEdge {
-                start_v_label: 1,
-                start_v_index: 0,
-                target_v_label: 1,
-                edge_label: 1,
-                dir: Direction::Out
-            }
+            ExtendEdge { start_v_label: 1, start_v_index: 0, edge_label: 1, dir: Direction::Out }
         );
     }
 }
