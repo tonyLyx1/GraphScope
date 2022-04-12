@@ -16,14 +16,31 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+/// 边的方向：正向，反向或双向
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Direction {
+pub enum Direction {
     Out = 0,
-    Incoming,
+    Incoming = 1,
+    Bothway = 2,
 }
 
+impl Direction {
+    /// ### Convert a Direction Reference to u8
+    pub fn to_u8(input: &Direction) -> u8 {
+        match input {
+            Direction::Out => 0,
+            Direction::Incoming => 1,
+            Direction::Bothway => 2,
+            _ => panic!("Error in Converting Direction Enum Type to U8")
+        }
+    } 
+}
+
+/// 单个点的信息
+/// 
+/// Remark: 由于完全对称的点拥有相同的index，需使用order字段加以区分
 #[derive(Debug, Clone)]
-struct PatternVertex {
+pub struct PatternVertex {
     index: u64,
     label: u64,
     order: u64,
@@ -33,8 +50,26 @@ struct PatternVertex {
     in_degree: u64,
 }
 
+impl PatternVertex {
+    /// ### Get Vertex Index
+    pub fn get_vertex_index(&self) -> u64 {
+        self.index
+    }
+
+    /// ### Get Vertex Label
+    pub fn get_vertex_label(&self) -> u64 {
+        self.label
+    }
+
+    /// ### Get Vertex Order
+    pub fn get_vertex_order(&self) -> u64 {
+        self.order
+    }
+}
+
+/// 单条边的信息
 #[derive(Debug, Clone, Copy)]
-struct PatternEdge {
+pub struct PatternEdge {
     index: u64,
     label: u64,
     start_v_index: u64,
@@ -43,16 +78,66 @@ struct PatternEdge {
     end_v_label: u64,
 }
 
+impl PatternEdge {
+    /// ### Create a New PatternEdge
+    pub fn create(
+        index: u64,
+        label: u64,
+        start_v_index: u64,
+        end_v_index: u64,
+        start_v_label: u64,
+        end_v_label: u64
+    ) -> PatternEdge {
+        PatternEdge {
+            index,
+            label,
+            start_v_index,
+            end_v_index,
+            start_v_label,
+            end_v_label,
+        }
+    }
+
+
+    /// ### Get Edge Label
+    pub fn get_edge_label(&self) -> u64 {
+        self.label
+    }
+
+    /// ### Get Edge Index
+    pub fn get_edge_index(&self) -> u64 {
+        self.index
+    }
+
+    /// ### Get the Indices of Both Start and End Vertices of the Edge
+    pub fn get_edge_vertices_index(&self) -> (u64, u64) {
+        (self.start_v_index, self.end_v_index)
+    }
+
+    /// ### Get the Labels of Both Start and End Vertices of the Edge
+    pub fn get_edge_vertices_label(&self) -> (u64, u64) {
+        (self.start_v_label, self.end_v_label)
+    }
+}
+
+/// Pattern的全部信息，包含所有的点，边信息
+/// 
+/// edge_label_map: 拥有相同label的边的index集合
+/// 
+/// vertex_label_map: 拥有相同label的店的index集合
 #[derive(Debug, Clone)]
-struct Pattern {
+pub struct Pattern {
     edges: BTreeMap<u64, PatternEdge>,
     vertices: BTreeMap<u64, PatternVertex>,
     edge_label_map: HashMap<u64, BTreeSet<u64>>,
     vertex_label_map: HashMap<u64, BTreeSet<u64>>,
 }
 
+/// Private Functions of Pattern
 impl Pattern {
-    fn reorder_label_vertices(&mut self, v_label: u64) {}
+    fn reorder_label_vertices(&mut self, v_label: u64) {
+        // To Be Completed
+    }
 
     fn reorder_vertices(&mut self) {
         let mut v_labels = Vec::with_capacity(self.vertex_label_map.len());
@@ -64,71 +149,52 @@ impl Pattern {
         }
     }
 
-    /// Get the Order of two PatternEdges of a Pattern
-    /// The comparison logics are:
-    /// if e1's label is less than e2's, then e1 < e2, vice versa,
-    /// else if equal, move to next comparison step:
-    /// if e1's start vertex label is less than e2's then e1 < e2, vice versa,
-    /// else if equal, move to next comparison step:
-    /// if e1's end vertex label is less than e2's ,then e1 < e2, vice versa,
-    /// else if equal, move to next comparison step:
-    /// if e1's start vertex's order is less than e2's then e1 < e2, vice versa,
-    /// else if equal, move to next comparison step:
-    /// if e1's end vertex's order is less than e2's ,then e1 < e2, vice versa,
-    /// else if equal, move to next comparison step:
+    /// ### Get the Order of two PatternEdges of a Pattern
+    /// Order by Edge Label, Vertex Labels and Vertex Indices
+    /// 
+    /// Return equal if still cannot distinguish
     fn cmp_edges(&self, e1_index: u64, e2_index: u64) -> Ordering {
-        let e1 = self.edges.get(&e1_index).unwrap();
-        let e2 = self.edges.get(&e2_index).unwrap();
+        // Get edges from BTreeMap
+        let e1 = self.get_edge_from_edge_index(e1_index);
+        let e2 = self.get_edge_from_edge_index(e2_index);
+        // Compare the edge label
         match e1.label.cmp(&e2.label) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
         }
+        // Compare the label of starting vertex
         match e1.start_v_label.cmp(&e2.start_v_label) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
         }
+        // Compare the label of ending vertex
         match e1.end_v_label.cmp(&e2.end_v_label) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
         }
-        let e1_start_order = self
-            .vertices
-            .get(&e1.start_v_index)
-            .unwrap()
-            .order;
-        let e2_start_order = self
-            .vertices
-            .get(&e2.start_v_index)
-            .unwrap()
-            .order;
-        match e1_start_order.cmp(&e2_start_order) {
+        // Get orders for starting vertex
+        let (e1_start_v_order, e1_end_v_order) = self.get_edge_vertices_order(e1_index);
+        let (e2_start_v_order, e2_end_v_order) = self.get_edge_vertices_order(e2_index);
+        // Compare the order of the starting vertex
+        match e1_start_v_order.cmp(&e2_start_v_order) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
         }
-        let e1_end_order = self
-            .vertices
-            .get(&e1.end_v_index)
-            .unwrap()
-            .order;
-        let e2_end_order = self
-            .vertices
-            .get(&e2.end_v_index)
-            .unwrap()
-            .order;
-        match e1_end_order.cmp(&e2_end_order) {
+        // Compare the order of ending vertex
+        match e1_end_v_order.cmp(&e2_end_v_order) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
         }
+        // Return as equal if still cannot distinguish
         Ordering::Equal
     }
 
-    /// Get a vector of ordered edges's indexes of a Pattern
-    /// The comparison is based on the `cmp_edges` method above to get the order
+    /// ### Get a vector of ordered edges's indexes of a Pattern
     fn get_ordered_edges(&self) -> Vec<u64> {
         let mut ordered_edges = Vec::new();
         for (&edge, _) in &self.edges {
@@ -138,22 +204,41 @@ impl Pattern {
         ordered_edges
     }
 
-    /// Get a edge encode unit of a PatternEdge
-    /// The unit contains 5 components:
-    /// (edge's label, start vertex's label, end vertex's label, start vertex's label, end vertex's label)
-    fn get_edge_encode_unit(&self, edge_index: u64) -> (u64, u64, u64, u64, u64) {
+    /// ### Get Vertex Order from Vertex Index Reference
+    fn get_vertex_order(&self, vertex_index: &u64) -> u64 {
+        let order = self
+			.vertices
+			.get(vertex_index)
+			.unwrap()
+			.order;
+        order
+    }
+}
+
+/// Public Functions of Pattern
+impl Pattern {
+    /// ### Get Edges References
+    pub fn get_edges(&self) -> &BTreeMap<u64, PatternEdge> {
+        &self.edges
+    }
+
+    /// ### Get Vertices References
+    pub fn get_vertices(&self) -> &BTreeMap<u64, PatternVertex> {
+        &self.vertices
+    }
+
+    /// ### [Public] Get PatternEdge Reference from Edge Index and Pattern Object
+    pub fn get_edge_from_edge_index(&self, edge_index: u64) -> &PatternEdge {
         let edge = self.edges.get(&edge_index).unwrap();
-        let start_v_order = self
-            .vertices
-            .get(&edge.start_v_index)
-            .unwrap()
-            .order;
-        let end_v_order = self
-            .vertices
-            .get(&edge.end_v_index)
-            .unwrap()
-            .order;
-        (edge_index, edge.start_v_label, edge.end_v_label, start_v_order, end_v_order)
+        edge
+    }
+
+    /// ### [Public] Get the order of both start and end vertices of an edge
+    pub fn get_edge_vertices_order(&self, edge_index: u64) -> (u64, u64) {
+        let edge = self.get_edge_from_edge_index(edge_index);
+        let start_v_order = self.get_vertex_order(&edge.start_v_index);
+        let end_v_order = self.get_vertex_order(&edge.end_v_index);
+        (start_v_order, end_v_order)
     }
 }
 
@@ -173,7 +258,7 @@ impl From<Vec<PatternEdge>> for Pattern {
                 .entry(edge.label)
                 .or_insert(BTreeSet::new());
             edge_set.insert(edge.index);
-            // Add or update the start & end vertex to the new Pattern
+            // Add or update the start vertex to the new Pattern
             match new_pattern
                 .vertices
                 .get_mut(&edge.start_v_index)
@@ -217,7 +302,12 @@ impl From<Vec<PatternEdge>> for Pattern {
                     vertex_set.insert(edge.start_v_index);
                 }
             }
-            match new_pattern.vertices.get_mut(&edge.end_v_index) {
+
+            // Add or update the end vertex to the new Pattern
+            match new_pattern
+                .vertices
+                .get_mut(&edge.end_v_index)
+            {
                 // the end vertex existed, just update the connection info
                 Some(end_vertex) => {
                     end_vertex
@@ -258,6 +348,7 @@ impl From<Vec<PatternEdge>> for Pattern {
                 }
             }
         }
+
         new_pattern
     }
 }
