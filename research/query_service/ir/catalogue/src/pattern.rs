@@ -227,7 +227,7 @@ impl Pattern {
                             .connect_vertices
                             .insert(vertices_can_use[i], vec![(new_pattern_edge.id, Direction::Out)]);
                         new_pattern_vertex.in_degree += 1;
-                        // Add he new pattern info to the new Pattern
+                        // Add the new pattern edge info to the new Pattern
                         new_pattern
                             .edge_label_map
                             .entry(new_pattern_edge.label)
