@@ -334,23 +334,21 @@ mod tests {
 		let encoder = Encoder::initialize(2, 2, 2, 2);
 		let encode_value = encoder.encode_pattern(&pattern);
 
-		let encode_unit_1 = EncodeUnit::get_edge_encode_unit(&pattern, &0);
-		let encode_string_1 = encoder.encode_unit_to_ascii_string(&encode_unit_1);
+		// let encode_unit_1 = EncodeUnit::get_edge_encode_unit(&pattern, &0);
+		// let encode_string_1 = encoder.encode_unit_to_ascii_string(&encode_unit_1);
 		let mut expected_encode_string_1: AsciiString = AsciiString::new();
 		let ascii_char_1 = (0 as u8).to_ascii_char().unwrap();
 		let ascii_char_2 = (11 as u8).to_ascii_char().unwrap();
 		expected_encode_string_1.push(ascii_char_1);
 		expected_encode_string_1.push(ascii_char_2);
-		assert_eq!(encode_string_1.len(), 2);
-		assert_eq!(encode_string_1, expected_encode_string_1);
-		let encode_unit_2 = EncodeUnit::get_edge_encode_unit(&pattern, &1);
-		let encode_string_2 = encoder.encode_unit_to_ascii_string(&encode_unit_2);
+		// let encode_unit_2 = EncodeUnit::get_edge_encode_unit(&pattern, &1);
+		// let encode_string_2 = encoder.encode_unit_to_ascii_string(&encode_unit_2);
 		let mut expected_encode_string_2: AsciiString = AsciiString::new();
 		let ascii_char_1 = (64 as u8).to_ascii_char().unwrap();
 		let ascii_char_2 = (19 as u8).to_ascii_char().unwrap();
 		expected_encode_string_2.push(ascii_char_1);
 		expected_encode_string_2.push(ascii_char_2);
-		let expected_encode_value = expected_encode_string_2 + &expected_encode_string_1;
+		let expected_encode_value = expected_encode_string_1 + &expected_encode_string_2;
 
 		assert_eq!(encode_value, expected_encode_value);
 	}
