@@ -30,12 +30,6 @@ use crate::pattern::Pattern;
 use crate::pattern::Direction;
 use ascii::{self, ToAsciiChar, AsciiString};
 
-
-/// 两个模块：Pattern + Extend
-/// 两个trait：encode + decode
-/// 两个模块分别实现两个trait
-
-
 /// ## Edge-Based Encoding Unit
 /// ### Member Variables
 /// Each encoding unit represents an edge in the pattern and contains:
