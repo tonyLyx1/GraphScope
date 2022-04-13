@@ -19,14 +19,14 @@ use super::pattern::Direction;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendEdge {
-    pub start_v_label: u64,
-    pub start_v_index: u64,
-    pub edge_label: u64,
+    pub start_v_label: i32,
+    pub start_v_index: i32,
+    pub edge_label: i32,
     pub dir: Direction,
 }
 
 impl ExtendEdge {
-    fn to_encode_unit(&self) -> (u64, u64, u64, u8) {
+    fn to_encode_unit(&self) -> (i32, i32, i32, u8) {
         match self.dir {
             Direction::Out => (self.start_v_label, self.start_v_index, self.start_v_label, 0),
             Direction::Incoming => (self.start_v_label, self.start_v_index, self.start_v_label, 1),
@@ -36,13 +36,13 @@ impl ExtendEdge {
 
 #[derive(Debug, Clone)]
 pub struct ExtendStep {
-    pub target_v_label: u64,
+    pub target_v_label: i32,
     // extend edges are classified by their start_v_labels and start_v_indices
-    pub extend_edges: BTreeMap<(u64, u64), Vec<ExtendEdge>>,
+    pub extend_edges: BTreeMap<(i32, i32), Vec<ExtendEdge>>,
 }
 
-impl From<(u64, Vec<ExtendEdge>)> for ExtendStep {
-    fn from((target_v_label, edges): (u64, Vec<ExtendEdge>)) -> ExtendStep {
+impl From<(i32, Vec<ExtendEdge>)> for ExtendStep {
+    fn from((target_v_label, edges): (i32, Vec<ExtendEdge>)) -> ExtendStep {
         let mut new_extend_step = ExtendStep { target_v_label, extend_edges: BTreeMap::new() };
         for edge in edges {
             let edge_vec = new_extend_step

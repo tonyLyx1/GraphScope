@@ -25,36 +25,36 @@ pub enum Direction {
 }
 
 #[derive(Debug, Clone)]
-struct PatternVertex {
-    id: u64,
-    label: u64,
-    index: u64,
-    connect_edges: BTreeMap<u64, (u64, Direction)>,
-    connect_vertices: BTreeMap<u64, Vec<(u64, Direction)>>,
-    out_degree: u64,
-    in_degree: u64,
+pub struct PatternVertex {
+    id: i32,
+    label: i32,
+    index: i32,
+    connect_edges: BTreeMap<i32, (i32, Direction)>,
+    connect_vertices: BTreeMap<i32, Vec<(i32, Direction)>>,
+    out_degree: i32,
+    in_degree: i32,
 }
 
 #[derive(Debug, Clone, Copy)]
-struct PatternEdge {
-    id: u64,
-    label: u64,
-    start_v_id: u64,
-    end_v_id: u64,
-    start_v_label: u64,
-    end_v_label: u64,
+pub struct PatternEdge {
+    pub id: i32,
+    pub label: i32,
+    pub start_v_id: i32,
+    pub end_v_id: i32,
+    pub start_v_label: i32,
+    pub end_v_label: i32,
 }
 
 #[derive(Debug, Clone)]
-struct Pattern {
-    edges: BTreeMap<u64, PatternEdge>,
-    vertices: BTreeMap<u64, PatternVertex>,
-    edge_label_map: HashMap<u64, BTreeSet<u64>>,
-    vertex_label_map: HashMap<u64, BTreeSet<u64>>,
+pub struct Pattern {
+    pub edges: BTreeMap<i32, PatternEdge>,
+    pub vertices: BTreeMap<i32, PatternVertex>,
+    pub edge_label_map: HashMap<i32, BTreeSet<i32>>,
+    pub vertex_label_map: HashMap<i32, BTreeSet<i32>>,
 }
 
 impl Pattern {
-    fn reorder_label_vertices(&mut self, v_label: u64) {}
+    fn reorder_label_vertices(&mut self, v_label: i32) {}
 
     fn reorder_vertices(&mut self) {
         let mut v_labels = Vec::with_capacity(self.vertex_label_map.len());
@@ -78,7 +78,7 @@ impl Pattern {
     /// else if equal, move to next comparison step:
     /// if e1's end vertex's id is less than e2's ,then e1 < e2, vice versa,
     /// else if equal, move to next comparison step:
-    fn cmp_edges(&self, e1_id: u64, e2_id: u64) -> Ordering {
+    fn cmp_edges(&self, e1_id: i32, e2_id: i32) -> Ordering {
         let e1 = self.edges.get(&e1_id).unwrap();
         let e2 = self.edges.get(&e2_id).unwrap();
         match e1.label.cmp(&e2.label) {
@@ -115,7 +115,7 @@ impl Pattern {
 
     /// Get a vector of ordered edges's indexes of a Pattern
     /// The comparison is based on the `cmp_edges` method above to get the Order
-    fn get_ordered_edges(&self) -> Vec<u64> {
+    fn get_ordered_edges(&self) -> Vec<i32> {
         let mut ordered_edges = Vec::new();
         for (&edge, _) in &self.edges {
             ordered_edges.push(edge);
@@ -127,7 +127,7 @@ impl Pattern {
     /// Get a edge encode unit of a PatternEdge
     /// The unit contains 5 components:
     /// (edge's label, start vertex's label, end vertex's label, start vertex's label, end vertex's label)
-    fn get_edge_encode_unit(&self, edge_id: u64) -> (u64, u64, u64, u64, u64) {
+    pub fn get_edge_encode_unit(&self, edge_id: i32) -> (i32, i32, i32, i32, i32) {
         let edge = self.edges.get(&edge_id).unwrap();
         let start_v_index = self
             .vertices
@@ -142,7 +142,7 @@ impl Pattern {
 impl Pattern {
     /// Get all the vertices(id) with the same vertex label and vertex index
     /// These vertices are equivalent in the Pattern
-    fn get_equivalent_vertices(&self, v_label: u64, v_index: u64) -> Vec<u64> {
+    fn get_equivalent_vertices(&self, v_label: i32, v_index: i32) -> Vec<i32> {
         let mut equivalent_vertices = Vec::new();
         if let Some(vs_with_same_label) = self.vertex_label_map.get(&v_label) {
             for v_id in vs_with_same_label {
@@ -157,8 +157,8 @@ impl Pattern {
     }
 
     /// Get the legal id for the future incoming vertex
-    fn get_next_pattern_vertex_id(&self) -> u64 {
-        let mut new_vertex_id = self.vertices.len() as u64;
+    fn get_next_pattern_vertex_id(&self) -> i32 {
+        let mut new_vertex_id = self.vertices.len() as i32;
         while self.vertices.contains_key(&new_vertex_id) {
             new_vertex_id += 1;
         }
@@ -166,8 +166,8 @@ impl Pattern {
     }
 
     /// Get the legal id for the future incoming vertex
-    fn get_next_pattern_edge_id(&self) -> u64 {
-        let mut new_edge_id = self.edges.len() as u64;
+    fn get_next_pattern_edge_id(&self) -> i32 {
+        let mut new_edge_id = self.edges.len() as i32;
         while self.edges.contains_key(&new_edge_id) {
             new_edge_id += 1;
         }
@@ -177,7 +177,7 @@ impl Pattern {
     /// Extend the current Pattern to a new Pattern with the given ExtendStep
     /// If the ExtendStep is not matched with the current Pattern, the function will return None
     /// Else, it will return the new Pattern after the extension
-    fn extend(&self, extend_step: ExtendStep) -> Option<Pattern> {
+    fn extend(&self, extend_step: ExtendStep) -> Option<Pattern> { 
         let mut new_pattern = self.clone();
         let target_v_label = extend_step.target_v_label;
         let mut new_pattern_vertex = PatternVertex {
@@ -280,8 +280,8 @@ impl Pattern {
 }
 
 // Initialize a Pattern containing only one vertex from hte vertex's id and label
-impl From<(u64, u64)> for Pattern {
-    fn from((vertex_id, vertex_label): (u64, u64)) -> Pattern {
+impl From<(i32, i32)> for Pattern {
+    fn from((vertex_id, vertex_label): (i32, i32)) -> Pattern {
         let vertex = PatternVertex {
             id: vertex_id,
             label: vertex_label,
@@ -532,7 +532,7 @@ mod tests {
         // Pattern after extend should be exactly the same as pattern case2
         let pattern_case2 = build_pattern_case2();
         assert_eq!(pattern_after_extend.edges.len(), pattern_case2.edges.len());
-        for i in 0..pattern_after_extend.edges.len() as u64 {
+        for i in 0..pattern_after_extend.edges.len() as i32 {
             let edge1 = pattern_after_extend.edges.get(&i).unwrap();
             let edge2 = pattern_case2.edges.get(&i).unwrap();
             assert_eq!(edge1.id, edge2.id);
@@ -543,7 +543,7 @@ mod tests {
             assert_eq!(edge1.end_v_label, edge2.end_v_label);
         }
         assert_eq!(pattern_after_extend.edges.len(), pattern_case2.edges.len());
-        for i in 0..pattern_after_extend.vertices.len() as u64 {
+        for i in 0..pattern_after_extend.vertices.len() as i32 {
             let vertex1 = pattern_after_extend.vertices.get(&i).unwrap();
             let vertex2 = pattern_after_extend.vertices.get(&i).unwrap();
             assert_eq!(vertex1.id, vertex2.id);
