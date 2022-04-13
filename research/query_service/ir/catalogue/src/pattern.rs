@@ -13,9 +13,10 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
-use std::cmp::Ordering;
+use std::cmp::{Ordering, min, max};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use crate::extend_step::{ExtendEdge, ExtendStep};
+use fast_math::{log2};
 
 /// 边的方向：正向，反向或双向
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,9 +124,9 @@ impl PatternEdge {
 
 /// Pattern的全部信息，包含所有的点，边信息
 /// 
-/// edge_label_map: 拥有相同label的边的index集合
+/// edge_label_map: 拥有相同label的边的id集合
 /// 
-/// vertex_label_map: 拥有相同label的店的index集合
+/// vertex_label_map: 拥有相同label的点的id集合
 #[derive(Debug, Clone)]
 pub struct Pattern {
     edges: BTreeMap<u64, PatternEdge>,
@@ -243,6 +244,57 @@ impl Pattern {
         let end_v_order = self.get_vertex_index(&edge.end_v_id);
         (start_v_order, end_v_order)
     }
+
+    /// ### Get the total number of edges in the pattern
+    pub fn get_edge_num(&self) -> u64 {
+        self.edges.len() as u64
+    }
+
+    /// ### Get the total number of vertices in the pattern
+    pub fn get_vertex_num(&self) -> u64 {
+        println!("Vertex Num: {}", self.vertices.len());
+        self.vertices.len() as u64
+    }
+
+    /// ### Get the total number of edge labels in the pattern
+    pub fn get_edge_label_num(&self) -> u64 {
+        self.edge_label_map.len() as u64
+    }
+
+    /// ### Compute at least how many bits are needed to represent edge labels
+    /// At least 1 bit
+    pub fn get_min_edge_label_bit_num(&self) -> u8 {
+        max(1, log2(self.get_edge_num() as f32).ceil() as u8)
+    }
+
+    /// ### Get the total number of vertex labels in the pattern
+    pub fn get_vertex_label_num(&self) -> u64 {
+        self.vertex_label_map.len() as u64
+    }
+
+    /// ### Compute at least how many bits are needed to represent vertex labels
+    /// At least 1 bit
+    pub fn get_min_vertex_label_bit_num(&self) -> u8 {
+        max(1, log2(self.get_vertex_num() as f32).ceil() as u8)
+    }
+
+    /// ### Compute at least how many bits are needed to represent vertices with the same label
+    /// At least 1 bit
+    pub fn get_min_vertex_index_bit_num(&self) -> u8 {
+        // iterate through the hashmap and compute how many vertices have the same label in one set
+        let mut min_index_bit_num: u8 = 1;
+        for (_, value) in self.vertex_label_map.iter() {
+            let same_label_vertex_num = value.len() as u64;
+            let index_bit_num: u8 = log2(same_label_vertex_num as f32).ceil() as u8;
+            if index_bit_num > min_index_bit_num {
+                min_index_bit_num = index_bit_num;
+            }
+        }
+
+        println!("Min Index Bit Num: {}", min_index_bit_num);
+        min_index_bit_num
+    }
+
 
     /// Get a edge encode unit of a PatternEdge
     /// The unit contains 5 components:
@@ -551,11 +603,12 @@ impl From<Vec<PatternEdge>> for Pattern {
 
 #[cfg(test)]
 mod tests {
-    use super::Direction;
-    use super::Pattern;
-    use super::PatternEdge;
-    use super::PatternVertex;
-    use super::{ExtendEdge, ExtendStep};
+    // use super::Direction;
+    // use super::Pattern;
+    // use super::PatternEdge;
+    // use super::PatternVertex;
+    // use super::{ExtendEdge, ExtendStep};
+    use super::*;
     use crate::pattern;
 
     fn build_pattern_case1() -> Pattern {
