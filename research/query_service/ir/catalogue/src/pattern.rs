@@ -754,7 +754,7 @@ mod tests {
                     incoming_0_0_0 += 1;
                 }
             }
-            if extend_step.target_v_label == 1 && extend_edge.dir == Direction::Out{
+            if extend_step.target_v_label == 1 && extend_edge.dir == Direction::Out {
                 out_0_0_1 += 1;
             }
         }
@@ -771,7 +771,10 @@ mod tests {
         assert_eq!(all_extend_steps.len(), 1);
         assert_eq!(all_extend_steps[0].target_v_label, 0);
         assert_eq!(all_extend_steps[0].extend_edges.len(), 1);
-        let extend_edge = all_extend_steps[0].extend_edges.get(&(1, 0)).unwrap()[0];
+        let extend_edge = all_extend_steps[0]
+            .extend_edges
+            .get(&(1, 0))
+            .unwrap()[0];
         assert_eq!(extend_edge.start_v_label, 1);
         assert_eq!(extend_edge.start_v_index, 0);
         assert_eq!(extend_edge.edge_label, 1);
