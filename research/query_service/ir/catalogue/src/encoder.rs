@@ -28,7 +28,8 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use crate::pattern::Pattern;
 use crate::pattern::Direction;
-use ascii::{self, ToAsciiChar, AsciiString};
+use crate::codec::{Encode, Decode};
+use ascii::{self, ToAsciiChar, AsciiChar, AsciiString};
 
 /// ## Edge-Based Encoding Unit
 /// ### Member Variables
@@ -39,6 +40,7 @@ use ascii::{self, ToAsciiChar, AsciiString};
 /// 4. Edge Direction
 /// 5. Src Vertex Index
 /// 6. Dst Vertex Index
+/// 
 /// ### Functions
 /// 
 #[derive(Debug, Clone)]
@@ -73,7 +75,7 @@ impl EncodeUnit {
 
 	/// ### Create EncodeUnit of an Edge
 	pub fn get_edge_encode_unit(pattern: &Pattern, edge_index: &u64) -> EncodeUnit {
-		let edge = pattern.get_edge_from_edge_index(*edge_index);
+		let edge = pattern.get_edge_from_id(*edge_index);
 		let (start_v_label, end_v_label) = edge.get_edge_vertices_label();
 		let (start_v_index, end_v_index) = pattern.get_edge_vertices_order(*edge_index);
 		
@@ -86,14 +88,49 @@ impl EncodeUnit {
 			end_v_index,
 		}
 	}
+
+	/// ### Compute the AsciiChar of an Encode Unit in a certain Index
+	pub fn to_ascii_char(&self, encoder: &Encoder, index: u8) -> AsciiChar {
+		let (
+			edge_label_bit_num,
+			vertex_label_bit_num,
+			edge_direction_bit_num,
+			vertex_index_bit_num,
+			bit_per_ascii_char,
+			ascii_char_num_per_encode_unit,
+		) = encoder.get_all_member_variables();
+		let end_v_index_end_bit = 0;
+		let start_v_index_end_bit = end_v_index_end_bit + vertex_index_bit_num;
+		let edge_direction_end_bit = start_v_index_end_bit + vertex_index_bit_num;
+		let end_v_label_end_bit = edge_direction_end_bit + edge_direction_bit_num;
+		let start_v_label_end_bit = end_v_label_end_bit + vertex_label_bit_num;
+		let edge_label_end_bit = start_v_label_end_bit + vertex_label_bit_num;
+		let value: u8 = encoder.encode_unit_to_ascii_string_fill_char(self.edge_label, edge_label_bit_num, edge_label_end_bit, index)
+									+ encoder.encode_unit_to_ascii_string_fill_char(self.start_v_label, vertex_label_bit_num, start_v_label_end_bit, index)
+									+ encoder.encode_unit_to_ascii_string_fill_char(self.end_v_label, vertex_label_bit_num, end_v_label_end_bit, index)
+									+ encoder.encode_unit_to_ascii_string_fill_char(self.edge_direction.into_u8() as u64, edge_direction_bit_num, edge_direction_end_bit, index)
+									+ encoder.encode_unit_to_ascii_string_fill_char(self.start_v_index, vertex_index_bit_num, start_v_index_end_bit, index)
+									+ encoder.encode_unit_to_ascii_string_fill_char(self.end_v_index, vertex_index_bit_num, end_v_index_end_bit, index);
+
+		value.to_ascii_char().unwrap()
+	}
+
+	/// ### Setter of end_v_label
+	pub fn set_end_v_label(&mut self, end_v_label: u64) {
+		self.end_v_label = end_v_label;
+	}
+
+	/// ### Setter of end_v_index
+	pub fn set_end_v_index(&mut self, end_v_index: u64) {
+		self.end_v_index = end_v_index;
+	}
 }
 
 
 /// ## Unique Pattern Identity Encoder
 /// ### Member Variables
-/// It contains the bit number that each variable in the encoding unit occupies
-/// ### Functions
-/// 
+/// Contains the bit number that each variable in the encoding unit occupies
+#[derive(Debug, Clone)]
 pub struct Encoder {
 	edge_label_bit_num: u8,
 	vertex_label_bit_num: u8,
@@ -101,6 +138,24 @@ pub struct Encoder {
 	vertex_index_bit_num: u8,
 	bit_per_ascii_char: u8,
 	ascii_char_num_per_encode_unit: u8,
+}
+
+/// Getters
+impl Encoder {
+	pub fn get_all_member_variables(&self) -> (u8, u8, u8, u8, u8, u8) {
+		(
+			self.edge_label_bit_num,
+			self.vertex_label_bit_num,
+			self.edge_direction_bit_num,
+			self.vertex_index_bit_num,
+			self.bit_per_ascii_char,
+			self.ascii_char_num_per_encode_unit,
+		)
+	}
+
+	pub fn get_ascii_char_num_per_encode_unit(&self) -> u8 {
+		self.ascii_char_num_per_encode_unit
+	}
 }
 
 impl Encoder {
@@ -150,33 +205,8 @@ impl Encoder {
 		}
 	}
 
-	/// ### Transfer the Encoding Unit into a String
-	fn encode_unit_to_ascii_string(&self, unit: &EncodeUnit) -> AsciiString {
-		// 根据Encoder的比特位参数来决定生成string的格式
-		let mut encode_str = AsciiString::new();
-		let ascii_char_num_per_encode_unit = self.ascii_char_num_per_encode_unit;
-		// Compute the final bit of each variable in the encode unit
-		let end_v_index_end_bit = 0;
-		let start_v_index_end_bit = end_v_index_end_bit + self.vertex_index_bit_num;
-		let edge_direction_end_bit = start_v_index_end_bit + self.vertex_index_bit_num;
-		let end_v_label_end_bit = edge_direction_end_bit + self.edge_direction_bit_num;
-		let start_v_label_end_bit = end_v_label_end_bit + self.vertex_label_bit_num;
-		let edge_label_end_bit = start_v_label_end_bit + self.vertex_label_bit_num;
-		// Compute each ASCII char
-		for i in 0..ascii_char_num_per_encode_unit {
-			let value: u8 = self.encode_unit_to_ascii_string_fill_char(unit.edge_label, self.edge_label_bit_num, edge_label_end_bit, i)
-										+ self.encode_unit_to_ascii_string_fill_char(unit.start_v_label, self.vertex_label_bit_num, start_v_label_end_bit, i)
-										+ self.encode_unit_to_ascii_string_fill_char(unit.end_v_label, self.vertex_label_bit_num, end_v_label_end_bit, i)
-										+ self.encode_unit_to_ascii_string_fill_char(Direction::to_u8(&unit.edge_direction) as u64, self.edge_direction_bit_num, edge_direction_end_bit, i)
-										+ self.encode_unit_to_ascii_string_fill_char(unit.start_v_index, self.vertex_index_bit_num, start_v_index_end_bit, i)
-										+ self.encode_unit_to_ascii_string_fill_char(unit.end_v_index, self.vertex_index_bit_num, end_v_index_end_bit, i);
-			println!("index {} has value {}", i, value);
-			encode_str.push(value.to_ascii_char().unwrap());
-		}
-
-		encode_str
-	}
-
+	/// ### Fill Encode Unit Value to a Specific ASCII Char
+	/// Callee of encode_unit_to_ascii_string function 
 	fn encode_unit_to_ascii_string_fill_char(&self, value: u64, bit_num: u8, end_bit: u8, char_num: u8) -> u8 {
 		let mut output: u64;
 		let bit_per_ascii_char = self.bit_per_ascii_char;
@@ -211,193 +241,9 @@ impl Encoder {
 
 		return output as u8;
 	}
-
-
-	/// ### Set Initial Vertex Index Based on Comparison of Labels
-	pub fn set_initial_vertex_index(&self, pattern: &mut Pattern) {
-		// To Be Completed
-	}
-
-	/// ### Set Accurate Vertex Index based on Initial Vertex Indices
-	pub fn set_accurate_vertex_index(&self, pattern: &mut Pattern) {
-		// To be Completed
-	}
-
-	/// Set Vertex Indices
-	pub fn set_vertex_index(&self, pattern: &mut Pattern) {
-		// Set Initial Indices First
-		self.set_initial_vertex_index(pattern);
-		// Set Accurate Indices
-		self.set_accurate_vertex_index(pattern);
-	}
-
-	/// Encode a Pattern into a String
-	pub fn encode_pattern(&self, pattern: &Pattern) -> AsciiString {
-		// Initialize an BTreeSet to Store the Encoding Units
-		let mut set = BTreeSet::from([]);
-		// Encode Each Edge in the Pattern as an Encoding Unit
-		let edges = pattern.get_edges();
-		for (edge_id, _) in edges.iter() {
-			let encode_unit: EncodeUnit = EncodeUnit::get_edge_encode_unit(pattern, edge_id);
-			let encode_string: AsciiString = self.encode_unit_to_ascii_string(&encode_unit);
-			set.insert(encode_string);
-		}
-
-		let mut encode_value = AsciiString::new();
-		let mut set_iter = set.iter();
-		loop {
-			match set_iter.next() {
-				Some(value) => encode_value = encode_value + &value,
-				None => break
-			}
-		}
-
-		println!("Encode Value: {:?}", encode_value);
-
-		encode_value
-	}
 }
-
-
 
 /// Unit Testing
 #[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::pattern::{PatternEdge, Pattern, Direction};
-	use ascii::{self, ToAsciiChar, AsciiString};
-
-	fn build_pattern_testcase_1() -> Pattern {
-		let pattern_edge1 = PatternEdge::create(0, 1, 0, 1, 1, 2);
-		let pattern_edge2 = PatternEdge::create(1, 2, 0, 2, 1, 3);
-		let pattern_vec = vec![pattern_edge1, pattern_edge2];
-		Pattern::from(pattern_vec)
-	}
-
-	fn build_pattern_testcase_2() -> Pattern {
-		let edge_1 = PatternEdge::create(0, 1, 0, 1, 1, 2);
-		let edge_2 = PatternEdge::create(1, 2, 0, 2, 1, 3);
-		let edge_3 = PatternEdge::create(2, 3, 1, 2, 2, 3);
-		let edge_4 = PatternEdge::create(3, 4, 0, 3, 1, 4);
-		let edge_5 = PatternEdge::create(4, 5, 1, 3, 2, 4);
-		let edge_6 = PatternEdge::create(5, 6, 3, 2, 4, 3);
-		let pattern_edges = vec![edge_1, edge_2, edge_3, edge_4, edge_5, edge_6];
-		Pattern::from(pattern_edges)
-	}
-
-	#[test]
-	fn test_create_encode_unit_from_edge() {
-		let pattern = build_pattern_testcase_1();
-		let encode_unit_1 = EncodeUnit::get_edge_encode_unit(&pattern, &0);
-		assert_eq!(encode_unit_1.edge_label, 1);
-		assert_eq!(encode_unit_1.start_v_label, 1);
-		assert_eq!(encode_unit_1.end_v_label, 2);
-		assert_eq!(encode_unit_1.edge_direction, Direction::Out);
-		assert_eq!(encode_unit_1.start_v_index, 0);
-		assert_eq!(encode_unit_1.end_v_index, 0);
-		let encode_unit_2 = EncodeUnit::get_edge_encode_unit(&pattern, &1);
-		assert_eq!(encode_unit_2.edge_label, 2);
-		assert_eq!(encode_unit_2.start_v_label, 1);
-		assert_eq!(encode_unit_2.end_v_label, 3);
-		assert_eq!(encode_unit_2.edge_direction, Direction::Out);
-		assert_eq!(encode_unit_2.start_v_index, 0);
-		assert_eq!(encode_unit_2.end_v_index, 0);
-	}
-
-	#[test]
-	fn test_initialize_encoder_from_parameter_case1() {
-		let encoder = Encoder::initialize(2, 3, 4, 5);
-		assert_eq!(encoder.edge_label_bit_num, 2);
-		assert_eq!(encoder.vertex_label_bit_num, 3);
-		assert_eq!(encoder.edge_direction_bit_num, 4);
-		assert_eq!(encoder.vertex_index_bit_num, 5);
-		assert_eq!(encoder.bit_per_ascii_char, 7);
-		assert_eq!(encoder.ascii_char_num_per_encode_unit, 4);
-	}
-
-	#[test]
-	fn test_initialize_encoder_from_parameter_case2() {
-		let encoder = Encoder::initialize(2, 2, 2, 2);
-		assert_eq!(encoder.edge_label_bit_num, 2);
-		assert_eq!(encoder.vertex_label_bit_num, 2);
-		assert_eq!(encoder.edge_direction_bit_num, 2);
-		assert_eq!(encoder.vertex_index_bit_num, 2);
-		assert_eq!(encoder.bit_per_ascii_char, 7);
-		assert_eq!(encoder.ascii_char_num_per_encode_unit, 2);
-	}
-
-	#[test]
-	fn test_initialize_encoder_from_pattern_case1() {
-		let pattern = build_pattern_testcase_1();
-		let default_vertex_index_bit_num = 0;
-		let encoder = Encoder::initialize_from_pattern(&pattern, default_vertex_index_bit_num);
-		assert_eq!(encoder.edge_label_bit_num, 1);
-		assert_eq!(encoder.vertex_label_bit_num, 2);
-		assert_eq!(encoder.edge_direction_bit_num, 2);
-		assert_eq!(encoder.vertex_index_bit_num, 1);
-		assert_eq!(encoder.bit_per_ascii_char, 7);
-		assert_eq!(encoder.ascii_char_num_per_encode_unit, 2);
-	}
-
-	#[test]
-	fn test_initialize_encoder_from_pattern_case2() {
-		let pattern = build_pattern_testcase_2();
-		let default_vertex_index_bit_num = 2;
-		let encoder = Encoder::initialize_from_pattern(&pattern, default_vertex_index_bit_num);
-		assert_eq!(encoder.edge_label_bit_num, 3);
-		assert_eq!(encoder.vertex_label_bit_num, 2);
-		assert_eq!(encoder.edge_direction_bit_num, 2);
-		assert_eq!(encoder.vertex_index_bit_num, 2);
-		assert_eq!(encoder.bit_per_ascii_char, 7);
-		assert_eq!(encoder.ascii_char_num_per_encode_unit, 2);
-	}
-
-	#[test]
-	fn test_encode_ascii_string_from_encode_unit() {
-		let pattern = build_pattern_testcase_1();
-		let encoder = Encoder::initialize(2, 2, 2, 2);
-		let encode_unit_1 = EncodeUnit::get_edge_encode_unit(&pattern, &0);
-		let encode_string_1 = encoder.encode_unit_to_ascii_string(&encode_unit_1);
-		let mut expected_encode_string_1: AsciiString = AsciiString::new();
-		let ascii_char_1 = (0 as u8).to_ascii_char().unwrap();
-		let ascii_char_2 = (11 as u8).to_ascii_char().unwrap();
-		expected_encode_string_1.push(ascii_char_1);
-		expected_encode_string_1.push(ascii_char_2);
-		assert_eq!(encode_string_1.len(), 2);
-		assert_eq!(encode_string_1, expected_encode_string_1);
-		let encode_unit_2 = EncodeUnit::get_edge_encode_unit(&pattern, &1);
-		let encode_string_2 = encoder.encode_unit_to_ascii_string(&encode_unit_2);
-		let mut expected_encode_string_2: AsciiString = AsciiString::new();
-		let ascii_char_1 = (64 as u8).to_ascii_char().unwrap();
-		let ascii_char_2 = (19 as u8).to_ascii_char().unwrap();
-		expected_encode_string_2.push(ascii_char_1);
-		expected_encode_string_2.push(ascii_char_2);
-		assert_eq!(encode_string_2.len(), 2);
-		assert_eq!(encode_string_2, expected_encode_string_2);
-	}
-
-	#[test]
-	fn test_pattern_encode_value_case_1() {
-		let pattern = build_pattern_testcase_1();
-		let encoder = Encoder::initialize(2, 2, 2, 2);
-		let encode_value = encoder.encode_pattern(&pattern);
-
-		// let encode_unit_1 = EncodeUnit::get_edge_encode_unit(&pattern, &0);
-		// let encode_string_1 = encoder.encode_unit_to_ascii_string(&encode_unit_1);
-		let mut expected_encode_string_1: AsciiString = AsciiString::new();
-		let ascii_char_1 = (0 as u8).to_ascii_char().unwrap();
-		let ascii_char_2 = (11 as u8).to_ascii_char().unwrap();
-		expected_encode_string_1.push(ascii_char_1);
-		expected_encode_string_1.push(ascii_char_2);
-		// let encode_unit_2 = EncodeUnit::get_edge_encode_unit(&pattern, &1);
-		// let encode_string_2 = encoder.encode_unit_to_ascii_string(&encode_unit_2);
-		let mut expected_encode_string_2: AsciiString = AsciiString::new();
-		let ascii_char_1 = (64 as u8).to_ascii_char().unwrap();
-		let ascii_char_2 = (19 as u8).to_ascii_char().unwrap();
-		expected_encode_string_2.push(ascii_char_1);
-		expected_encode_string_2.push(ascii_char_2);
-		let expected_encode_value = expected_encode_string_1 + &expected_encode_string_2;
-
-		assert_eq!(encode_value, expected_encode_value);
-	}
-}
+#[path = "./tests/encoder.rs"]
+mod unit_test;

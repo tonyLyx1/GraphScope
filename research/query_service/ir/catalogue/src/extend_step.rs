@@ -14,8 +14,10 @@
 //! limitations under the License.
 
 use std::collections::BTreeMap;
-
-use super::pattern::Direction;
+use crate::pattern::*;
+use crate::encoder::*;
+use crate::codec::{Encode, Decode};
+use ascii::{AsciiString};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendEdge {
@@ -25,32 +27,39 @@ pub struct ExtendEdge {
     pub dir: Direction,
 }
 
-impl ExtendEdge {
-    fn to_encode_unit(&self) -> (u64, u64, u64, u8) {
-        match self.dir {
-            Direction::Out => (self.start_v_label, self.start_v_index, self.start_v_label, 0),
-            Direction::Incoming => (self.start_v_label, self.start_v_index, self.start_v_label, 1),
-            Direction::Bothway => {
-                // To Be Completed
-                panic!("Error in ExtendEdge: Bothway Edge Drection Not Supported At the Moment");
-            }
-            _ => {
-                panic!("Error in ExtendEdge: invalid Edge Direction Enum Value");
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ExtendStep {
-    pub target_v_label: u64,
+    // encoder: &Encoder,
+    // pattern: &Pattern,
+    target_v_label: u64,
     // extend edges are classified by their start_v_labels and start_v_indices
-    pub extend_edges: BTreeMap<(u64, u64), Vec<ExtendEdge>>,
+    extend_edges: BTreeMap<(u64, u64), Vec<ExtendEdge>>,
+}
+
+impl ExtendStep {
+    /// ### Compute the index of target vertex based on Qk-1
+    pub fn get_target_v_index(&self) -> u64 {
+        let target_v_index = 0;
+        target_v_index
+    }
+
+    /// ### Getter of target_v_label
+    pub fn get_target_v_label(&self) -> u64 {
+        self.target_v_label
+    }
+
+    /// ### Getter of extend_edges reference
+    pub fn get_extend_edges(&self) -> &BTreeMap<(u64, u64), Vec<ExtendEdge>> {
+        &self.extend_edges
+    }
 }
 
 impl From<(u64, Vec<ExtendEdge>)> for ExtendStep {
     fn from((target_v_label, edges): (u64, Vec<ExtendEdge>)) -> ExtendStep {
-        let mut new_extend_step = ExtendStep { target_v_label, extend_edges: BTreeMap::new() };
+        let mut new_extend_step = ExtendStep {
+            target_v_label,
+            extend_edges: BTreeMap::new()
+        };
         for edge in edges {
             let edge_vec = new_extend_step
                 .extend_edges
@@ -63,38 +72,5 @@ impl From<(u64, Vec<ExtendEdge>)> for ExtendStep {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::Direction;
-    use super::ExtendEdge;
-    use super::ExtendStep;
-
-    fn build_extend_step_case1() -> ExtendStep {
-        let extend_edge0 =
-            ExtendEdge { start_v_label: 1, start_v_index: 0, edge_label: 1, dir: Direction::Out };
-        let extend_edge1 = extend_edge0.clone();
-        ExtendStep::from((1, vec![extend_edge0, extend_edge1]))
-    }
-
-    #[test]
-    fn test_extend_step_case1_structure() {
-        let extend_step1 = build_extend_step_case1();
-        assert_eq!(extend_step1.target_v_label, 1);
-        assert_eq!(extend_step1.extend_edges.len(), 1);
-        assert_eq!(
-            extend_step1
-                .extend_edges
-                .get(&(1, 0))
-                .unwrap()
-                .len(),
-            2
-        );
-        assert_eq!(
-            extend_step1.extend_edges.get(&(1, 0)).unwrap()[0],
-            ExtendEdge { start_v_label: 1, start_v_index: 0, edge_label: 1, dir: Direction::Out }
-        );
-        assert_eq!(
-            extend_step1.extend_edges.get(&(1, 0)).unwrap()[1],
-            ExtendEdge { start_v_label: 1, start_v_index: 0, edge_label: 1, dir: Direction::Out }
-        );
-    }
-}
+#[path = "./tests/extend_step.rs"]
+mod unit_test;
