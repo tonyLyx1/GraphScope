@@ -26,8 +26,7 @@ impl Encode<Vec<u8>> for Pattern {
     fn write_to(&self) -> Vec<u8> {
         let code = Vec::new();
         for (pattern_id, _) in &self.edges {
-            let encode_unit = self.get_edge_encode_unit(*pattern_id);
-            
+            let _encode_unit = self.get_edge_encode_unit(*pattern_id);
         }
         code
     }

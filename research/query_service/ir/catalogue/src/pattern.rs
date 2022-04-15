@@ -14,9 +14,10 @@
 //! limitations under the License.
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use super::extend_step::{ExtendEdge, ExtendStep};
+use super::pattern_meta::PatternMeta;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
@@ -54,9 +55,9 @@ pub struct Pattern {
 }
 
 impl Pattern {
-    fn reorder_label_vertices(&mut self, v_label: i32) {}
+    fn reorder_label_vertices(&mut self, _v_label: i32) {}
 
-    fn reorder_vertices(&mut self) {
+    pub fn reorder_vertices(&mut self) {
         let mut v_labels = Vec::with_capacity(self.vertex_label_map.len());
         for (v_label, _) in &self.vertex_label_map {
             v_labels.push(*v_label)
@@ -115,7 +116,7 @@ impl Pattern {
 
     /// Get a vector of ordered edges's indexes of a Pattern
     /// The comparison is based on the `cmp_edges` method above to get the Order
-    fn get_ordered_edges(&self) -> Vec<i32> {
+    pub fn get_ordered_edges(&self) -> Vec<i32> {
         let mut ordered_edges = Vec::new();
         for (&edge, _) in &self.edges {
             ordered_edges.push(edge);
@@ -177,7 +178,7 @@ impl Pattern {
     /// Extend the current Pattern to a new Pattern with the given ExtendStep
     /// If the ExtendStep is not matched with the current Pattern, the function will return None
     /// Else, it will return the new Pattern after the extension
-    fn extend(&self, extend_step: ExtendStep) -> Option<Pattern> { 
+    pub fn extend(&self, extend_step: ExtendStep) -> Option<Pattern> {
         let mut new_pattern = self.clone();
         let target_v_label = extend_step.target_v_label;
         let mut new_pattern_vertex = PatternVertex {
@@ -276,6 +277,55 @@ impl Pattern {
             .insert(new_pattern_vertex.id, new_pattern_vertex);
         new_pattern.reorder_label_vertices(target_v_label);
         Some(new_pattern)
+    }
+
+    pub fn get_extend_steps(&self, pattern_meta: &PatternMeta) -> Vec<ExtendStep> {
+        let mut extend_steps = Vec::new();
+        let target_vertices = pattern_meta.get_all_vertex_ids();
+        for target_v_label in target_vertices {
+            let mut extend_edgess = Vec::new();
+            let mut extend_edges_with_src_id = Vec::new();
+            for (_, src_vertex) in &self.vertices {
+                let connect_edges =
+                    pattern_meta.get_edges_between_vertices(src_vertex.label, target_v_label);
+                for connect_edge in connect_edges {
+                    let extend_edge = ExtendEdge {
+                        start_v_label: src_vertex.label,
+                        start_v_index: src_vertex.index,
+                        edge_label: connect_edge.0,
+                        dir: connect_edge.1,
+                    };
+                    extend_edges_with_src_id.push((extend_edge, src_vertex.id));
+                }
+            }
+            let mut queue = VecDeque::new();
+            for (i, extend_edge) in extend_edges_with_src_id.iter().enumerate() {
+                queue.push_back((vec![extend_edge.clone()], i + 1));
+            }
+            while queue.len() > 0 {
+                let (extend_edges_combinations, max_index) = queue.pop_front().unwrap();
+                let mut extend_edges = Vec::with_capacity(extend_edges_combinations.len());
+                for (extend_edge, _) in &extend_edges_combinations {
+                    extend_edges.push(*extend_edge);
+                }
+                extend_edgess.push(extend_edges);
+                'outer: for i in max_index..extend_edges_with_src_id.len() {
+                    for (_, src_id) in &extend_edges_combinations {
+                        if *src_id == extend_edges_with_src_id[i].1 {
+                            continue 'outer;
+                        }
+                    }
+                    let mut new_extend_edges_combinations = extend_edges_combinations.clone();
+                    new_extend_edges_combinations.push(extend_edges_with_src_id[i]);
+                    queue.push_back((new_extend_edges_combinations, i + 1));
+                }
+            }
+            for extend_edges in extend_edgess {
+                let extend_step = ExtendStep::from((target_v_label, extend_edges));
+                extend_steps.push(extend_step);
+            }
+        }
+        extend_steps
     }
 }
 
@@ -415,13 +465,23 @@ impl From<Vec<PatternEdge>> for Pattern {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+
+    use ir_core::{plan::meta::Schema, JsonIO};
+
     use super::Direction;
     use super::Pattern;
     use super::PatternEdge;
-    use super::PatternVertex;
+    use super::PatternMeta;
     use super::{ExtendEdge, ExtendStep};
-    use crate::pattern;
 
+    /// The pattern looks like:
+    /// A <-> A
+    /// where <-> means two edges
+    /// A's label's id is 0
+    /// The edges's labels' id are both 0
+    /// The left A has id 0
+    /// The right A has id 1
     fn build_pattern_case1() -> Pattern {
         let pattern_edge1 =
             PatternEdge { id: 0, label: 0, start_v_id: 0, end_v_id: 1, start_v_label: 0, end_v_label: 0 };
@@ -431,6 +491,17 @@ mod tests {
         Pattern::from(pattern_vec)
     }
 
+    /// The pattern looks like:
+    ///         B
+    ///       /   \
+    ///      A <-> A
+    /// where <-> means two edges
+    /// A's label id is 0, B's label id is 1
+    /// The edges between two As have label id 0
+    /// The edges between A and B have label id 1
+    /// The left A has id 0
+    /// The right A has id 1
+    /// B has id 2
     fn build_pattern_case2() -> Pattern {
         let pattern_edge1 =
             PatternEdge { id: 0, label: 0, start_v_id: 0, end_v_id: 1, start_v_label: 0, end_v_label: 0 };
@@ -444,6 +515,15 @@ mod tests {
         Pattern::from(pattern_vec)
     }
 
+    /// The extend step looks like:
+    ///         B
+    ///       /   \
+    ///      A     A
+    /// The left A has label id 0 and index 0
+    /// The right A also has label id 0 and index 0, the two A's are equivalent
+    /// The target vertex is B with label id 1
+    /// The two extend edges are both with edge id 1
+    /// pattern_case1 + extend_step_case1 = pattern_case2
     fn build_extend_step_case1() -> ExtendStep {
         let extend_edge1 =
             ExtendEdge { start_v_label: 0, start_v_index: 0, edge_label: 1, dir: Direction::Out };
@@ -451,6 +531,43 @@ mod tests {
         ExtendStep::from((1, vec![extend_edge1, extend_edge2]))
     }
 
+    fn get_modern_pattern_meta() -> PatternMeta {
+        let modern_schema_file = match File::open("resource/modern_schema.json") {
+            Ok(file) => file,
+            Err(_) => File::open("catalogue/resource/modern_schema.json").unwrap(),
+        };
+        let modern_schema = Schema::from_json(modern_schema_file).unwrap();
+        PatternMeta::from(modern_schema)
+    }
+
+    /// Pattern from modern schema file
+    /// Person only Pattern
+    fn build_modern_pattern_case1() -> Pattern {
+        Pattern::from((0, 0))
+    }
+
+    /// Software only Pattern
+    fn build_modern_pattern_case2() -> Pattern {
+        Pattern::from((0, 1))
+    }
+
+    /// Person -> knows -> Person
+    fn build_modern_pattern_case3() -> Pattern {
+        let pattern_edge =
+            PatternEdge { id: 0, label: 0, start_v_id: 0, end_v_id: 1, start_v_label: 0, end_v_label: 0 };
+        let mut pattern = Pattern::from(vec![pattern_edge]);
+        pattern.vertices.get_mut(&1).unwrap().index = 1;
+        pattern
+    }
+
+    /// Person -> created -> Software
+    fn build_modern_pattern_case4() -> Pattern {
+        let pattern_edge =
+            PatternEdge { id: 0, label: 1, start_v_id: 0, end_v_id: 1, start_v_label: 0, end_v_label: 1 };
+        Pattern::from(vec![pattern_edge])
+    }
+
+    /// Test whether the structure of pattern_case1 is the same as our previous description
     #[test]
     fn test_pattern_case1_structure() {
         let pattern_case1 = build_pattern_case1();
@@ -522,6 +639,7 @@ mod tests {
         assert_eq!(*v1_v0_connected_edges_iter.next().unwrap(), (1, Direction::Out));
     }
 
+    /// Test whether pattern_case1 + extend_step_case1 = pattern_case2
     #[test]
     fn test_pattern_case1_extend() {
         let pattern_case1 = build_pattern_case1();
@@ -611,5 +729,325 @@ mod tests {
                 vertices_with_labeli_2_element = vertices_with_labeli_2_iter.next();
             }
         }
+    }
+
+    #[test]
+    fn test_get_extend_steps_of_modern_case1() {
+        let modern_pattern_meta = get_modern_pattern_meta();
+        let person_only_pattern = build_modern_pattern_case1();
+        let all_extend_steps = person_only_pattern.get_extend_steps(&modern_pattern_meta);
+        assert_eq!(all_extend_steps.len(), 3);
+        let mut out_0_0_0 = 0;
+        let mut incoming_0_0_0 = 0;
+        let mut out_0_0_1 = 0;
+        for extend_step in all_extend_steps {
+            let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+            assert_eq!(extend_edges.len(), 1);
+            let extend_edge = extend_edges[0];
+            assert_eq!(extend_edge.start_v_label, 0);
+            assert_eq!(extend_edge.start_v_index, 0);
+            if extend_step.target_v_label == 0 {
+                if extend_edge.dir == Direction::Out {
+                    out_0_0_0 += 1;
+                }
+                if extend_edge.dir == Direction::Incoming {
+                    incoming_0_0_0 += 1;
+                }
+            }
+            if extend_step.target_v_label == 1 && extend_edge.dir == Direction::Out{
+                out_0_0_1 += 1;
+            }
+        }
+        assert_eq!(out_0_0_0, 1);
+        assert_eq!(incoming_0_0_0, 1);
+        assert_eq!(out_0_0_1, 1);
+    }
+
+    #[test]
+    fn test_get_extend_steps_of_modern_case2() {
+        let modern_pattern_meta = get_modern_pattern_meta();
+        let person_only_pattern = build_modern_pattern_case2();
+        let all_extend_steps = person_only_pattern.get_extend_steps(&modern_pattern_meta);
+        assert_eq!(all_extend_steps.len(), 1);
+        assert_eq!(all_extend_steps[0].target_v_label, 0);
+        assert_eq!(all_extend_steps[0].extend_edges.len(), 1);
+        let extend_edge = all_extend_steps[0].extend_edges.get(&(1, 0)).unwrap()[0];
+        assert_eq!(extend_edge.start_v_label, 1);
+        assert_eq!(extend_edge.start_v_index, 0);
+        assert_eq!(extend_edge.edge_label, 1);
+        assert_eq!(extend_edge.dir, Direction::Incoming);
+    }
+
+    #[test]
+    fn test_get_extend_steps_of_modern_case3() {
+        let modern_pattern_meta = get_modern_pattern_meta();
+        let person_knows_person = build_modern_pattern_case3();
+        let all_extend_steps = person_knows_person.get_extend_steps(&modern_pattern_meta);
+        assert_eq!(all_extend_steps.len(), 11);
+        let mut extend_steps_with_label_0_count = 0;
+        let mut extend_steps_with_label_1_count = 0;
+        let mut out_0_0_0_count = 0;
+        let mut incoming_0_0_0_count = 0;
+        let mut out_0_1_0_count = 0;
+        let mut incoming_0_1_0_count = 0;
+        let mut out_0_0_1_count = 0;
+        let mut out_0_1_1_count = 0;
+        let mut out_0_0_0_out_0_1_0_count = 0;
+        let mut out_0_0_0_incoming_0_1_0_count = 0;
+        let mut incoming_0_0_0_out_0_1_0_count = 0;
+        let mut incoming_0_0_0_incoming_0_1_0_count = 0;
+        let mut out_0_0_1_out_0_1_1_count = 0;
+        for extend_step in all_extend_steps {
+            if extend_step.target_v_label == 0 {
+                extend_steps_with_label_0_count += 1;
+                if extend_step.extend_edges.len() == 1 {
+                    if extend_step.extend_edges.contains_key(&(0, 0)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 0);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                                out_0_0_0_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                                incoming_0_0_0_count += 1
+                            }
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                                out_0_0_1_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                                out_0_1_1_count += 1;
+                            }
+                        }
+                    } else if extend_step.extend_edges.contains_key(&(0, 1)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 1);
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                                out_0_1_0_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                                incoming_0_1_0_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                                out_0_0_1_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                                out_0_1_1_count += 1;
+                            }
+                        }
+                    }
+                } else if extend_step.extend_edges.len() == 2 {
+                    let mut found_out_0_0_0 = false;
+                    let mut found_incoming_0_0_0 = false;
+                    let mut found_out_0_1_0 = false;
+                    let mut found_incoming_0_1_0 = false;
+                    if extend_step.extend_edges.contains_key(&(0, 0)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 0);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                                found_out_0_0_0 = true;
+                            } else if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0
+                            {
+                                found_incoming_0_0_0 = true;
+                            }
+                        }
+                    }
+                    if extend_step.extend_edges.contains_key(&(0, 1)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 1);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                                found_out_0_1_0 = true;
+                            } else if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0
+                            {
+                                found_incoming_0_1_0 = true;
+                            }
+                        }
+                    }
+                    if found_out_0_0_0 && found_out_0_1_0 {
+                        out_0_0_0_out_0_1_0_count += 1;
+                    } else if found_out_0_0_0 && found_incoming_0_1_0 {
+                        out_0_0_0_incoming_0_1_0_count += 1;
+                    } else if found_incoming_0_0_0 && found_out_0_1_0 {
+                        incoming_0_0_0_out_0_1_0_count += 1;
+                    } else if found_incoming_0_0_0 && found_incoming_0_1_0 {
+                        incoming_0_0_0_incoming_0_1_0_count += 1;
+                    }
+                }
+            } else if extend_step.target_v_label == 1 {
+                extend_steps_with_label_1_count += 1;
+                if extend_step.extend_edges.len() == 1 {
+                    if extend_step.extend_edges.contains_key(&(0, 0)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 0);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                                out_0_0_1_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                                out_0_0_0_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                                incoming_0_0_0_count += 1
+                            }
+                        }
+                    } else if extend_step.extend_edges.contains_key(&(0, 1)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 1);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                                out_0_1_1_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                                out_0_0_0_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                                incoming_0_0_0_count += 1
+                            }
+                        }
+                    }
+                } else if extend_step.extend_edges.len() == 2 {
+                    let mut found_out_0_0_1 = false;
+                    let mut found_out_0_1_1 = false;
+                    if extend_step.extend_edges.contains_key(&(0, 0)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 0);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                                found_out_0_0_1 = true;
+                            }
+                        }
+                    }
+                    if extend_step.extend_edges.contains_key(&(0, 1)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 1);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                                found_out_0_1_1 = true;
+                            }
+                        }
+                    }
+                    if found_out_0_0_1 && found_out_0_1_1 {
+                        out_0_0_1_out_0_1_1_count += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(extend_steps_with_label_0_count, 8);
+        assert_eq!(extend_steps_with_label_1_count, 3);
+        assert_eq!(out_0_0_0_count, 1);
+        assert_eq!(incoming_0_0_0_count, 1);
+        assert_eq!(out_0_1_0_count, 1);
+        assert_eq!(incoming_0_1_0_count, 1);
+        assert_eq!(out_0_0_1_count, 1);
+        assert_eq!(out_0_1_1_count, 1);
+        assert_eq!(out_0_0_0_out_0_1_0_count, 1);
+        assert_eq!(out_0_0_0_incoming_0_1_0_count, 1);
+        assert_eq!(incoming_0_0_0_out_0_1_0_count, 1);
+        assert_eq!(incoming_0_0_0_incoming_0_1_0_count, 1);
+        assert_eq!(out_0_0_1_out_0_1_1_count, 1);
+    }
+
+    #[test]
+    fn test_get_extend_steps_of_modern_case4() {
+        let modern_pattern_meta = get_modern_pattern_meta();
+        let person_created_software = build_modern_pattern_case4();
+        let all_extend_steps = person_created_software.get_extend_steps(&modern_pattern_meta);
+        assert_eq!(all_extend_steps.len(), 6);
+        let mut extend_steps_with_label_0_count = 0;
+        let mut extend_steps_with_label_1_count = 0;
+        let mut out_0_0_0_count = 0;
+        let mut incoming_0_0_0_count = 0;
+        let mut incoming_1_0_1_count = 0;
+        let mut out_0_0_0_incoming_1_0_1_count = 0;
+        let mut incoming_0_0_0_incoming_1_0_1_count = 0;
+        for extend_step in all_extend_steps {
+            if extend_step.target_v_label == 0 {
+                extend_steps_with_label_0_count += 1;
+                if extend_step.extend_edges.len() == 1 {
+                    if extend_step.extend_edges.contains_key(&(0, 0)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 0);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                                out_0_0_0_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                                incoming_0_0_0_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 1 {
+                                incoming_1_0_1_count += 1;
+                            }
+                        }
+                    } else if extend_step.extend_edges.contains_key(&(1, 0)) {
+                        let extend_edges = extend_step.extend_edges.get(&(1, 0)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 1);
+                            assert_eq!(extend_edge.start_v_index, 0);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                                out_0_0_0_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                                incoming_0_0_0_count += 1;
+                            }
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 1 {
+                                incoming_1_0_1_count += 1;
+                            }
+                        }
+                    }
+                } else if extend_step.extend_edges.len() == 2 {
+                    let mut found_out_0_0_0 = false;
+                    let mut found_incoming_1_0_1 = false;
+                    let mut found_incoming_0_0_0 = false;
+                    if extend_step.extend_edges.contains_key(&(0, 0)) {
+                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 0);
+                            assert_eq!(extend_edge.start_v_index, 0);
+                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                                found_out_0_0_0 = true;
+                            } else if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0
+                            {
+                                found_incoming_0_0_0 = true;
+                            }
+                        }
+                    }
+                    if extend_step.extend_edges.contains_key(&(1, 0)) {
+                        let extend_edges = extend_step.extend_edges.get(&(1, 0)).unwrap();
+                        for extend_edge in extend_edges {
+                            assert_eq!(extend_edge.start_v_label, 1);
+                            assert_eq!(extend_edge.start_v_index, 0);
+                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 1 {
+                                found_incoming_1_0_1 = true;
+                            }
+                        }
+                    }
+                    if found_out_0_0_0 && found_incoming_1_0_1 {
+                        out_0_0_0_incoming_1_0_1_count += 1;
+                    } else if found_incoming_0_0_0 && found_incoming_1_0_1 {
+                        incoming_0_0_0_incoming_1_0_1_count += 1;
+                    }
+                }
+            } else if extend_step.target_v_label == 1 {
+                extend_steps_with_label_1_count += 1;
+            }
+        }
+        assert_eq!(extend_steps_with_label_0_count, 5);
+        assert_eq!(extend_steps_with_label_1_count, 1);
+        assert_eq!(out_0_0_0_count, 1);
+        assert_eq!(incoming_0_0_0_count, 1);
+        assert_eq!(incoming_1_0_1_count, 1);
+        assert_eq!(out_0_0_0_incoming_1_0_1_count, 1);
+        assert_eq!(incoming_0_0_0_incoming_1_0_1_count, 1);
     }
 }

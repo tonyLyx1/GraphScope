@@ -13,7 +13,7 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use super::pattern::Direction;
 
@@ -26,7 +26,7 @@ pub struct ExtendEdge {
 }
 
 impl ExtendEdge {
-    fn to_encode_unit(&self) -> (i32, i32, i32, u8) {
+    pub fn to_encode_unit(&self) -> (i32, i32, i32, u8) {
         match self.dir {
             Direction::Out => (self.start_v_label, self.start_v_index, self.start_v_label, 0),
             Direction::Incoming => (self.start_v_label, self.start_v_index, self.start_v_label, 1),
@@ -53,6 +53,25 @@ impl From<(i32, Vec<ExtendEdge>)> for ExtendStep {
         }
         new_extend_step
     }
+}
+
+pub fn get_subsets<T: Clone>(origin_vec: Vec<T>) -> Vec<Vec<T>> {
+    let n = origin_vec.len();
+    let mut set_collections = Vec::with_capacity((2 as usize).pow(n as u32));
+    let mut queue = VecDeque::new();
+    for (i, element) in origin_vec.iter().enumerate() {
+        queue.push_back((vec![element.clone()], i + 1));
+    }
+    while queue.len() > 0 {
+        let (subset, max_index) = queue.pop_front().unwrap();
+        set_collections.push(subset.clone());
+        for i in max_index..n {
+            let mut new_subset = subset.clone();
+            new_subset.push(origin_vec[i].clone());
+            queue.push_back((new_subset, i + 1));
+        }
+    }
+    set_collections
 }
 
 #[cfg(test)]
