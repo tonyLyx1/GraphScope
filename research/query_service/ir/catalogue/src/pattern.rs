@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use super::extend_step::{ExtendEdge, ExtendStep};
 use super::pattern_meta::PatternMeta;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Direction {
     Out = 0,
     Incoming,
@@ -123,20 +123,6 @@ impl Pattern {
         }
         ordered_edges.sort_by(|e1_id, e2_id| self.cmp_edges(*e1_id, *e2_id));
         ordered_edges
-    }
-
-    /// Get a edge encode unit of a PatternEdge
-    /// The unit contains 5 components:
-    /// (edge's label, start vertex's label, end vertex's label, start vertex's label, end vertex's label)
-    pub fn get_edge_encode_unit(&self, edge_id: i32) -> (i32, i32, i32, i32, i32) {
-        let edge = self.edges.get(&edge_id).unwrap();
-        let start_v_index = self
-            .vertices
-            .get(&edge.start_v_id)
-            .unwrap()
-            .index;
-        let end_v_index = self.vertices.get(&edge.end_v_id).unwrap().index;
-        (edge_id, edge.start_v_label, edge.end_v_label, start_v_index, end_v_index)
     }
 }
 
@@ -565,6 +551,25 @@ mod tests {
         let pattern_edge =
             PatternEdge { id: 0, label: 1, start_v_id: 0, end_v_id: 1, start_v_label: 0, end_v_label: 1 };
         Pattern::from(vec![pattern_edge])
+    }
+
+    fn get_ldbc_pattern_meta() -> PatternMeta {
+        let ldbc_schema_file = match File::open("resource/ldbc_schema.json") {
+            Ok(file) => file,
+            Err(_) => File::open("catalogue/resource/ldbc_schema.json").unwrap(),
+        };
+        let ldbc_schema = Schema::from_json(ldbc_schema_file).unwrap();
+        PatternMeta::from(ldbc_schema)
+    }
+
+    /// Pattern from ldbc schema file
+    /// Person -> knows -> Person
+    fn build_ldbc_pattern_case1() -> Pattern {
+        let pattern_edge =
+            PatternEdge { id: 0, label: 12, start_v_id: 0, end_v_id: 1, start_v_label: 1, end_v_label: 1 };
+        let mut pattern = Pattern::from(vec![pattern_edge]);
+        pattern.vertices.get_mut(&1).unwrap().index = 1;
+        pattern
     }
 
     /// Test whether the structure of pattern_case1 is the same as our previous description
@@ -1052,5 +1057,14 @@ mod tests {
         assert_eq!(incoming_1_0_1_count, 1);
         assert_eq!(out_0_0_0_incoming_1_0_1_count, 1);
         assert_eq!(incoming_0_0_0_incoming_1_0_1_count, 1);
+    }
+
+    #[test]
+    fn test_get_extend_steps_of_ldbc_case1() {
+        let ldbc_pattern_meta = get_ldbc_pattern_meta();
+        let person_knows_person = build_ldbc_pattern_case1();
+        let all_extend_steps = person_knows_person.get_extend_steps(&ldbc_pattern_meta);
+        println!("{:?}", all_extend_steps.len());
+        println!("{:?}", all_extend_steps);
     }
 }

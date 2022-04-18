@@ -25,15 +25,6 @@ pub struct ExtendEdge {
     pub dir: Direction,
 }
 
-impl ExtendEdge {
-    pub fn to_encode_unit(&self) -> (i32, i32, i32, u8) {
-        match self.dir {
-            Direction::Out => (self.start_v_label, self.start_v_index, self.start_v_label, 0),
-            Direction::Incoming => (self.start_v_label, self.start_v_index, self.start_v_label, 1),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ExtendStep {
     pub target_v_label: i32,

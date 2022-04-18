@@ -23,7 +23,7 @@ use super::pattern::Direction;
 pub struct PatternMeta {
     vertex_map: BTreeMap<String, i32>,
     edge_map: BTreeMap<String, i32>,
-    vertex_connect_edges: BTreeMap<i32, Vec<(i32, Direction)>>,
+    vertex_connect_edges: BTreeMap<i32, BTreeSet<(i32, Direction)>>,
     edge_connect_vertices: BTreeMap<i32, Vec<(i32, i32)>>,
     vertex_vertex_edges: BTreeMap<(i32, i32), Vec<(i32, Direction)>>,
 }
@@ -37,10 +37,26 @@ impl PatternMeta {
         self.edge_map.len()
     }
 
+    pub fn get_all_vertex_names(&self) -> Vec<String> {
+        let mut all_vertex_names = Vec::with_capacity(self.vertex_map.len());
+        for (vertex_name, _) in &self.vertex_map {
+            all_vertex_names.push(vertex_name.clone());
+        }
+        all_vertex_names
+    }
+
+    pub fn get_all_edge_names(&self) -> Vec<String> {
+        let mut all_edge_names = Vec::with_capacity(self.edge_map.len());
+        for (edge_name, _) in &self.edge_map {
+            all_edge_names.push(edge_name.clone());
+        }
+        all_edge_names
+    }
+
     pub fn get_all_vertex_ids(&self) -> Vec<i32> {
         let mut all_vertex_ids = Vec::with_capacity(self.vertex_map.len());
         for (_, vertex_id) in &self.vertex_map {
-            all_vertex_ids.push(*vertex_id)
+            all_vertex_ids.push(*vertex_id);
         }
         all_vertex_ids
     }
@@ -48,7 +64,7 @@ impl PatternMeta {
     pub fn get_all_edge_ids(&self) -> Vec<i32> {
         let mut all_edge_ids = Vec::with_capacity(self.edge_map.len());
         for (_, edge_id) in &self.edge_map {
-            all_edge_ids.push(*edge_id)
+            all_edge_ids.push(*edge_id);
         }
         all_edge_ids
     }
@@ -74,13 +90,11 @@ impl PatternMeta {
                 for (edge_id, dir) in connections {
                     let possible_edges = self.edge_connect_vertices.get(edge_id).unwrap();
                     for (start_v_id, end_v_id) in possible_edges {
-                        match *dir {
-                            Direction::Out => {
-                                connect_vertices.insert(*end_v_id);
-                            }
-                            Direction::Incoming => {
-                                connect_vertices.insert(*start_v_id);
-                            }
+                        if *start_v_id == src_v_id && *dir == Direction::Out {
+                            connect_vertices.insert(*end_v_id);
+                        }
+                        if *end_v_id == src_v_id && *dir == Direction::Incoming {
+                            connect_vertices.insert(*start_v_id);
                         }
                     }
                 }
@@ -99,6 +113,13 @@ impl PatternMeta {
                 }
                 connections_vec
             }
+            None => Vec::new(),
+        }
+    }
+
+    pub fn get_connect_vertices_of_e(&self, src_e_id: i32) -> Vec<(i32, i32)> {
+        match self.edge_connect_vertices.get(&src_e_id) {
+            Some(connections) => connections.clone(),
             None => Vec::new(),
         }
     }
@@ -136,13 +157,13 @@ impl From<Schema> for PatternMeta {
                         pattern_meta
                             .vertex_connect_edges
                             .entry(start_v_id)
-                            .or_insert(Vec::new())
-                            .push((*id, Direction::Out));
+                            .or_insert(BTreeSet::new())
+                            .insert((*id, Direction::Out));
                         pattern_meta
                             .vertex_connect_edges
                             .entry(end_v_id)
-                            .or_insert(Vec::new())
-                            .push((*id, Direction::Incoming));
+                            .or_insert(BTreeSet::new())
+                            .insert((*id, Direction::Incoming));
                         pattern_meta
                             .edge_connect_vertices
                             .entry(*id)
@@ -173,15 +194,27 @@ impl From<Schema> for PatternMeta {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
+    use std::{collections::BTreeMap, fs::File};
 
     use ir_core::{plan::meta::Schema, JsonIO};
 
     use super::PatternMeta;
+    use crate::pattern::Direction;
 
     fn read_modern_graph_schema() -> Schema {
-        let modern_schema_file = File::open("resource/modern_schema.json").unwrap();
+        let modern_schema_file = match File::open("resource/modern_schema.json") {
+            Ok(file) => file,
+            Err(_) => File::open("catalogue/resource/modern_schema.json").unwrap(),
+        };
         Schema::from_json(modern_schema_file).unwrap()
+    }
+
+    fn read_ldbc_graph_schema() -> Schema {
+        let ldbc_schema_file = match File::open("resource/ldbc_schema.json") {
+            Ok(file) => file,
+            Err(_) => File::open("catalogue/resource/ldbc_schema.json").unwrap(),
+        };
+        Schema::from_json(ldbc_schema_file).unwrap()
     }
 
     #[test]
@@ -232,5 +265,95 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn test_ldbc_graph_schema() {
+        let ldbc_graph_schema = read_ldbc_graph_schema();
+        let ldbc_pattern_meta = PatternMeta::from(ldbc_graph_schema.clone());
+        assert_eq!(
+            ldbc_pattern_meta.get_all_edge_ids().len() + ldbc_pattern_meta.get_all_vertex_ids().len(),
+            ldbc_graph_schema
+                .get_pattern_schema_info()
+                .0
+                .len()
+        );
+        let all_vertex_names = ldbc_pattern_meta.get_all_vertex_names();
+        for vertex_name in &all_vertex_names {
+            let v_id_from_schema = ldbc_graph_schema
+                .get_table_id(vertex_name)
+                .unwrap();
+            let v_id_from_pattern_meta = ldbc_pattern_meta
+                .get_vertex_id(vertex_name)
+                .unwrap();
+            assert_eq!(v_id_from_schema, v_id_from_pattern_meta);
+        }
+        let all_edge_names = ldbc_pattern_meta.get_all_edge_names();
+        for edge_name in &all_edge_names {
+            let e_id_from_schema = ldbc_graph_schema
+                .get_table_id(edge_name)
+                .unwrap();
+            let e_id_from_pattern_meta = ldbc_pattern_meta
+                .get_edge_id(edge_name)
+                .unwrap();
+            assert_eq!(e_id_from_schema, e_id_from_pattern_meta);
+        }
+        let all_edge_ids = ldbc_pattern_meta.get_all_edge_ids();
+        let mut vertex_vertex_edges = BTreeMap::new();
+        for edge_id in all_edge_ids {
+            let edge_connect_vertices = ldbc_pattern_meta.get_connect_vertices_of_e(edge_id);
+            for (start_v_id, end_v_id) in edge_connect_vertices {
+                vertex_vertex_edges
+                    .entry((start_v_id, end_v_id))
+                    .or_insert(Vec::new())
+                    .push((edge_id, Direction::Out));
+                vertex_vertex_edges
+                    .entry((end_v_id, start_v_id))
+                    .or_insert(Vec::new())
+                    .push((edge_id, Direction::Incoming));
+            }
+        }
+        for ((start_v_id, end_v_id), mut connections) in vertex_vertex_edges {
+            let mut edges_between_vertices =
+                ldbc_pattern_meta.get_edges_between_vertices(start_v_id, end_v_id);
+            assert_eq!(connections.len(), edges_between_vertices.len());
+            connections.sort();
+            edges_between_vertices.sort();
+            for i in 0..connections.len() {
+                assert_eq!(connections[i], edges_between_vertices[i]);
+            }
+        }
+        let all_vertex_ids = ldbc_pattern_meta.get_all_vertex_ids();
+        let mut vertex_vertex_edges = BTreeMap::new();
+        for vertex_id in all_vertex_ids {
+            let connect_edges = ldbc_pattern_meta.get_connect_edges_of_v(vertex_id);
+            for (edge_id, dir) in connect_edges {
+                let edge_connections = ldbc_pattern_meta.get_connect_vertices_of_e(edge_id);
+                for (start_v_id, end_v_id) in edge_connections {
+                    if start_v_id == vertex_id && dir == Direction::Out {
+                        vertex_vertex_edges
+                            .entry((start_v_id, end_v_id))
+                            .or_insert(Vec::new())
+                            .push((edge_id, Direction::Out));
+                    }
+                    if end_v_id == vertex_id && dir == Direction::Incoming {
+                        vertex_vertex_edges
+                            .entry((end_v_id, start_v_id))
+                            .or_insert(Vec::new())
+                            .push((edge_id, Direction::Incoming));
+                    }
+                }
+            }
+        }
+        for ((start_v_id, end_v_id), mut connections) in vertex_vertex_edges {
+            let mut edges_between_vertices =
+                ldbc_pattern_meta.get_edges_between_vertices(start_v_id, end_v_id);
+            assert_eq!(connections.len(), edges_between_vertices.len());
+            connections.sort();
+            edges_between_vertices.sort();
+            for i in 0..connections.len() {
+                assert_eq!(connections[i], edges_between_vertices[i]);
+            }
+        }
     }
 }
