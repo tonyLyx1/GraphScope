@@ -81,7 +81,7 @@ impl PatternVertex {
                       Ordering::Greater => return Ordering::Greater,
                       _ => (),
                   }
-                  match v1_connected_edge_dir.into_u8().cmp(&v2_connected_edge_dir.into_u8()) {
+                  match v1_connected_edge_dir.to_u8().cmp(&v2_connected_edge_dir.to_u8()) {
                       Ordering::Less => return Ordering::Less,
                       Ordering::Greater => return Ordering::Greater,
                       _ => (),
