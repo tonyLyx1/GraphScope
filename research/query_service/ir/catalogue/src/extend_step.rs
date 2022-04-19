@@ -19,10 +19,32 @@ use super::pattern::Direction;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendEdge {
-    pub start_v_label: i32,
-    pub start_v_index: i32,
-    pub edge_label: i32,
-    pub dir: Direction,
+    start_v_label: i32,
+    start_v_index: i32,
+    edge_label: i32,
+    dir: Direction,
+}
+
+impl ExtendEdge {
+    pub fn new(start_v_label: i32, start_v_index: i32, edge_label: i32, dir: Direction) -> ExtendEdge {
+        ExtendEdge { start_v_label, start_v_index, edge_label, dir }
+    }
+
+    pub fn get_start_vertex_label(&self) -> i32 {
+        self.start_v_label
+    }
+
+    pub fn get_start_vertex_index(&self) -> i32 {
+        self.start_v_index
+    }
+
+    pub fn get_edge_label(&self) -> i32 {
+        self.edge_label
+    }
+
+    pub fn get_direction(&self) -> Direction {
+        self.dir
+    }
 }
 
 #[derive(Debug, Clone)]

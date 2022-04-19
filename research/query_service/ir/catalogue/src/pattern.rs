@@ -15,11 +15,12 @@
 
 use std::cmp::{max, Ordering};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+
 use fast_math::log2;
 
+use super::codec::PatternEdgeEncodeUnit;
 use super::extend_step::{ExtendEdge, ExtendStep};
 use super::pattern_meta::PatternMeta;
-use super::codec::PatternEdgeEncodeUnit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Direction {
@@ -34,26 +35,99 @@ pub struct PatternVertex {
     index: i32,
     connect_edges: BTreeMap<i32, (i32, Direction)>,
     connect_vertices: BTreeMap<i32, Vec<(i32, Direction)>>,
-    out_degree: i32,
-    in_degree: i32,
+    out_degree: usize,
+    in_degree: usize,
+}
+
+impl PatternVertex {
+    pub fn get_id(&self) -> i32 {
+        self.id
+    }
+
+    pub fn get_label(&self) -> i32 {
+        self.label
+    }
+
+    pub fn get_index(&self) -> i32 {
+        self.index
+    }
+
+    pub fn get_out_degree(&self) -> usize {
+        self.out_degree
+    }
+
+    pub fn get_in_degree(&self) -> usize {
+        self.in_degree
+    }
+
+    pub fn get_connect_num(&self) -> usize {
+        self.connect_edges.len()
+    }
+
+    pub fn get_connect_vertex_by_edge_id(&self, edge_id: i32) -> Option<(i32, Direction)> {
+        match self.connect_edges.get(&edge_id) {
+            Some(connect_vertex) => Some(*connect_vertex),
+            None => None,
+        }
+    }
+
+    pub fn get_connect_edges_by_vertex_id(&self, vertex_id: i32) -> Vec<(i32, Direction)> {
+        match self.connect_vertices.get(&vertex_id) {
+            Some(connect_edges) => connect_edges.clone(),
+            None => Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct PatternEdge {
-    pub id: i32,
-    pub label: i32,
-    pub start_v_id: i32,
-    pub end_v_id: i32,
-    pub start_v_label: i32,
-    pub end_v_label: i32,
+    id: i32,
+    label: i32,
+    start_v_id: i32,
+    end_v_id: i32,
+    start_v_label: i32,
+    end_v_label: i32,
+}
+
+/// Methods to access the fields of a PatternEdge
+impl PatternEdge {
+    pub fn new(
+        id: i32, label: i32, start_v_id: i32, end_v_id: i32, start_v_label: i32, end_v_label: i32,
+    ) -> PatternEdge {
+        PatternEdge { id, label, start_v_id, end_v_id, start_v_label, end_v_label }
+    }
+
+    pub fn get_id(&self) -> i32 {
+        self.id
+    }
+
+    pub fn get_label(&self) -> i32 {
+        self.label
+    }
+
+    pub fn get_start_vertex_id(&self) -> i32 {
+        self.start_v_id
+    }
+
+    pub fn get_end_vertex_id(&self) -> i32 {
+        self.end_v_id
+    }
+
+    pub fn get_start_vertex_label(&self) -> i32 {
+        self.start_v_label
+    }
+
+    pub fn get_end_vertex_label(&self) -> i32 {
+        self.end_v_label
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Pattern {
-    pub edges: BTreeMap<i32, PatternEdge>,
-    pub vertices: BTreeMap<i32, PatternVertex>,
-    pub edge_label_map: HashMap<i32, BTreeSet<i32>>,
-    pub vertex_label_map: HashMap<i32, BTreeSet<i32>>,
+    edges: BTreeMap<i32, PatternEdge>,
+    vertices: BTreeMap<i32, PatternVertex>,
+    edge_label_map: HashMap<i32, BTreeSet<i32>>,
+    vertex_label_map: HashMap<i32, BTreeSet<i32>>,
 }
 
 /// Public Functions of Pattern
@@ -93,7 +167,6 @@ impl Pattern {
 
     /// ### Get the total number of vertices in the pattern
     pub fn get_vertex_num(&self) -> usize {
-        println!("Vertex Num: {}", self.vertices.len());
         self.vertices.len()
     }
 
@@ -131,12 +204,12 @@ impl Pattern {
                 min_index_bit_num = index_bit_num;
             }
         }
-
-        println!("Min Index Bit Num: {}", min_index_bit_num);
         min_index_bit_num
     }
 }
 
+/// Methods for Pattern Encoding and Decoding
+/// Include PatternVertex reordering and PatternEdge Reordering
 impl Pattern {
     fn reorder_label_vertices(&mut self, _v_label: i32) {}
 
@@ -148,6 +221,60 @@ impl Pattern {
         for v_label in v_labels {
             self.reorder_label_vertices(v_label)
         }
+    }
+
+    /// Get the Order of two PatternVertices of a Pattern
+    fn cmp_vertices(&self, v1_id: i32, v2_id: i32) -> Ordering {
+        let v1 = self.vertices.get(&v1_id).unwrap();
+        let v2 = self.vertices.get(&v2_id).unwrap();
+        match v1.label.cmp(&v2.label) {
+            Ordering::Less => return Ordering::Less,
+            Ordering::Greater => return Ordering::Greater,
+            _ => (),
+        }
+        // Compare Vertex Out Degree
+        match v1.out_degree.cmp(&v2.out_degree) {
+            Ordering::Less => return Ordering::Less,
+            Ordering::Greater => return Ordering::Greater,
+            _ => (),
+        }
+        // Compare Vertex In Degree
+        match v1.in_degree.cmp(&v2.in_degree) {
+            Ordering::Less => return Ordering::Less,
+            Ordering::Greater => return Ordering::Greater,
+            _ => (),
+        }
+
+        // The number of connected edges must be equal as In/Out Degrees are equal
+        let v1_connected_edges_iter = v1.connect_edges.iter();
+        let mut v2_connected_edges_iter = v2.connect_edges.iter();
+        for (v1_connected_edge_id, (v1_connected_edge_end_v_id, v1_connected_edge_dir)) in
+            v1_connected_edges_iter
+        {
+            match v2_connected_edges_iter.next() {
+                Some(edge_info) => {
+                    let (v2_connected_edge_id, (v2_connected_edge_end_v_id, v2_connected_edge_dir)) =
+                        edge_info;
+                    match v1_connected_edge_id.cmp(v2_connected_edge_id) {
+                        Ordering::Less => return Ordering::Less,
+                        Ordering::Greater => return Ordering::Greater,
+                        _ => (),
+                    }
+                    match v1_connected_edge_end_v_id.cmp(v2_connected_edge_end_v_id) {
+                        Ordering::Less => return Ordering::Less,
+                        Ordering::Greater => return Ordering::Greater,
+                        _ => (),
+                    }
+                    match v1_connected_edge_dir.cmp(&v2_connected_edge_dir) {
+                        Ordering::Less => return Ordering::Less,
+                        Ordering::Greater => return Ordering::Greater,
+                        _ => (),
+                    }
+                }
+                None => break,
+            }
+        }
+        Ordering::Equal
     }
 
     /// Get the Order of two PatternEdges of a Pattern
@@ -197,6 +324,32 @@ impl Pattern {
         Ordering::Equal
     }
 
+    /// ### Set Initial Vertex Index Based on Comparison of Labels and In/Out Degrees
+    pub fn set_initial_index(&mut self) {
+        for (_, vertex_set) in self.vertex_label_map.iter() {
+            let mut vertex_vec = Vec::with_capacity(vertex_set.len());
+            let mut vertex_set_iter = vertex_set.iter();
+            loop {
+                match vertex_set_iter.next() {
+                    Some(v_id) => {
+                        vertex_vec.push(*v_id);
+                        println!("v_id: {}", v_id);
+                    }
+                    None => break,
+                }
+            }
+
+            // vertex_vec.sort_by(|v1_id, v2_id| self.cmp_vertices(*v1_id, *v2_id));
+            vertex_vec.sort_by(|v1_id, v2_id| self.cmp_vertices(*v1_id, *v2_id));
+            let mut vertex_index = 0;
+            for v_id in vertex_vec.iter() {
+                let vertex = self.vertices.get_mut(v_id).unwrap();
+                vertex.index = vertex_index;
+                vertex_index += 1;
+            }
+        }
+    }
+
     /// Get a vector of ordered edges's indexes of a Pattern
     /// The comparison is based on the `cmp_edges` method above to get the Order
     pub fn get_ordered_edges(&self) -> Vec<i32> {
@@ -208,9 +361,9 @@ impl Pattern {
         ordered_edges
     }
 
-    /// ### Get Vertex Order from Vertex Index Reference
-    fn get_vertex_index(&self, vertex_index: &i32) -> i32 {
-        self.vertices.get(vertex_index).unwrap().index
+    /// ### Get Vertex Index from Vertex ID Reference
+    fn get_vertex_index(&self, v_id: &i32) -> i32 {
+        self.vertices.get(v_id).unwrap().index
     }
 
     pub fn get_edge_encode_unit_by_id(&self, edge_id: i32) -> PatternEdgeEncodeUnit {
@@ -230,6 +383,7 @@ impl Pattern {
     }
 }
 
+/// Methods for Pattern Extension
 impl Pattern {
     /// Get all the vertices(id) with the same vertex label and vertex index
     /// These vertices are equivalent in the Pattern
@@ -289,13 +443,13 @@ impl Pattern {
             }
             // Connect each vertex can be use to each extend edge
             for i in 0..extend_edges.len() {
-                match extend_edges[i].dir {
+                match extend_edges[i].get_direction() {
                     // Case that the extend edge's direciton is Out
                     Direction::Out => {
                         // new pattern edge info
                         let new_pattern_edge = PatternEdge {
                             id: new_pattern.get_next_pattern_edge_id(),
-                            label: extend_edges[i].edge_label,
+                            label: extend_edges[i].get_edge_label(),
                             start_v_id: vertices_can_use[i],
                             end_v_id: new_pattern_vertex.id,
                             start_v_label: self
@@ -327,7 +481,7 @@ impl Pattern {
                     Direction::Incoming => {
                         let new_pattern_edge = PatternEdge {
                             id: new_pattern.get_next_pattern_edge_id(),
-                            label: extend_edges[i].edge_label,
+                            label: extend_edges[i].get_edge_label(),
                             start_v_id: new_pattern_vertex.id,
                             end_v_id: vertices_can_use[i],
                             start_v_label: new_pattern_vertex.label,
@@ -379,12 +533,8 @@ impl Pattern {
                 let connect_edges =
                     pattern_meta.get_edges_between_vertices(src_vertex.label, target_v_label);
                 for connect_edge in connect_edges {
-                    let extend_edge = ExtendEdge {
-                        start_v_label: src_vertex.label,
-                        start_v_index: src_vertex.index,
-                        edge_label: connect_edge.0,
-                        dir: connect_edge.1,
-                    };
+                    let extend_edge =
+                        ExtendEdge::new(src_vertex.label, src_vertex.index, connect_edge.0, connect_edge.1);
                     extend_edges_with_src_id.push((extend_edge, src_vertex.id));
                 }
             }
@@ -419,7 +569,7 @@ impl Pattern {
     }
 }
 
-// Initialize a Pattern containing only one vertex from hte vertex's id and label
+/// Initialize a Pattern containing only one vertex from hte vertex's id and label
 impl From<(i32, i32)> for Pattern {
     fn from((vertex_id, vertex_label): (i32, i32)) -> Pattern {
         let vertex = PatternVertex {
@@ -435,7 +585,7 @@ impl From<(i32, i32)> for Pattern {
     }
 }
 
-// Initialze a Pattern from just a single Pattern Vertex
+/// Initialze a Pattern from just a single Pattern Vertex
 impl From<PatternVertex> for Pattern {
     fn from(vertex: PatternVertex) -> Pattern {
         Pattern {
@@ -615,8 +765,7 @@ mod tests {
     /// The two extend edges are both with edge id 1
     /// pattern_case1 + extend_step_case1 = pattern_case2
     fn build_extend_step_case1() -> ExtendStep {
-        let extend_edge1 =
-            ExtendEdge { start_v_label: 0, start_v_index: 0, edge_label: 1, dir: Direction::Out };
+        let extend_edge1 = ExtendEdge::new(0, 0, 1, Direction::Out);
         let extend_edge2 = extend_edge1.clone();
         ExtendStep::from((1, vec![extend_edge1, extend_edge2]))
     }
@@ -853,17 +1002,17 @@ mod tests {
             let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
             assert_eq!(extend_edges.len(), 1);
             let extend_edge = extend_edges[0];
-            assert_eq!(extend_edge.start_v_label, 0);
-            assert_eq!(extend_edge.start_v_index, 0);
+            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+            assert_eq!(extend_edge.get_start_vertex_index(), 0);
             if extend_step.target_v_label == 0 {
-                if extend_edge.dir == Direction::Out {
+                if extend_edge.get_direction() == Direction::Out {
                     out_0_0_0 += 1;
                 }
-                if extend_edge.dir == Direction::Incoming {
+                if extend_edge.get_direction() == Direction::Incoming {
                     incoming_0_0_0 += 1;
                 }
             }
-            if extend_step.target_v_label == 1 && extend_edge.dir == Direction::Out {
+            if extend_step.target_v_label == 1 && extend_edge.get_direction() == Direction::Out {
                 out_0_0_1 += 1;
             }
         }
@@ -884,10 +1033,10 @@ mod tests {
             .extend_edges
             .get(&(1, 0))
             .unwrap()[0];
-        assert_eq!(extend_edge.start_v_label, 1);
-        assert_eq!(extend_edge.start_v_index, 0);
-        assert_eq!(extend_edge.edge_label, 1);
-        assert_eq!(extend_edge.dir, Direction::Incoming);
+        assert_eq!(extend_edge.get_start_vertex_label(), 1);
+        assert_eq!(extend_edge.get_start_vertex_index(), 0);
+        assert_eq!(extend_edge.get_edge_label(), 1);
+        assert_eq!(extend_edge.get_direction(), Direction::Incoming);
     }
 
     #[test]
@@ -916,36 +1065,52 @@ mod tests {
                     if extend_step.extend_edges.contains_key(&(0, 0)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 0);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 0);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 incoming_0_0_0_count += 1
                             }
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 out_0_0_1_count += 1;
                             }
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 out_0_1_1_count += 1;
                             }
                         }
                     } else if extend_step.extend_edges.contains_key(&(0, 1)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 1);
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 1);
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 out_0_1_0_count += 1;
                             }
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 incoming_0_1_0_count += 1;
                             }
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 out_0_0_1_count += 1;
                             }
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 out_0_1_1_count += 1;
                             }
                         }
@@ -958,11 +1123,14 @@ mod tests {
                     if extend_step.extend_edges.contains_key(&(0, 0)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 0);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 0);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 found_out_0_0_0 = true;
-                            } else if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0
+                            } else if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
                             {
                                 found_incoming_0_0_0 = true;
                             }
@@ -971,11 +1139,14 @@ mod tests {
                     if extend_step.extend_edges.contains_key(&(0, 1)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 1);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 1);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 found_out_0_1_0 = true;
-                            } else if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0
+                            } else if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
                             {
                                 found_incoming_0_1_0 = true;
                             }
@@ -997,30 +1168,42 @@ mod tests {
                     if extend_step.extend_edges.contains_key(&(0, 0)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 0);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 0);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 out_0_0_1_count += 1;
                             }
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 incoming_0_0_0_count += 1
                             }
                         }
                     } else if extend_step.extend_edges.contains_key(&(0, 1)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 1);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 1);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 out_0_1_1_count += 1;
                             }
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 incoming_0_0_0_count += 1
                             }
                         }
@@ -1031,9 +1214,11 @@ mod tests {
                     if extend_step.extend_edges.contains_key(&(0, 0)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 0);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 0);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 found_out_0_0_1 = true;
                             }
                         }
@@ -1041,9 +1226,11 @@ mod tests {
                     if extend_step.extend_edges.contains_key(&(0, 1)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 1);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 1 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 1);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 found_out_0_1_1 = true;
                             }
                         }
@@ -1089,30 +1276,42 @@ mod tests {
                     if extend_step.extend_edges.contains_key(&(0, 0)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 0);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 0);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 incoming_0_0_0_count += 1;
                             }
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 1 {
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 incoming_1_0_1_count += 1;
                             }
                         }
                     } else if extend_step.extend_edges.contains_key(&(1, 0)) {
                         let extend_edges = extend_step.extend_edges.get(&(1, 0)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 1);
-                            assert_eq!(extend_edge.start_v_index, 0);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 1);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 0);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0 {
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 incoming_0_0_0_count += 1;
                             }
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 1 {
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 incoming_1_0_1_count += 1;
                             }
                         }
@@ -1124,11 +1323,14 @@ mod tests {
                     if extend_step.extend_edges.contains_key(&(0, 0)) {
                         let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 0);
-                            assert_eq!(extend_edge.start_v_index, 0);
-                            if extend_edge.dir == Direction::Out && extend_edge.edge_label == 0 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 0);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 0);
+                            if extend_edge.get_direction() == Direction::Out
+                                && extend_edge.get_edge_label() == 0
+                            {
                                 found_out_0_0_0 = true;
-                            } else if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 0
+                            } else if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 0
                             {
                                 found_incoming_0_0_0 = true;
                             }
@@ -1137,9 +1339,11 @@ mod tests {
                     if extend_step.extend_edges.contains_key(&(1, 0)) {
                         let extend_edges = extend_step.extend_edges.get(&(1, 0)).unwrap();
                         for extend_edge in extend_edges {
-                            assert_eq!(extend_edge.start_v_label, 1);
-                            assert_eq!(extend_edge.start_v_index, 0);
-                            if extend_edge.dir == Direction::Incoming && extend_edge.edge_label == 1 {
+                            assert_eq!(extend_edge.get_start_vertex_label(), 1);
+                            assert_eq!(extend_edge.get_start_vertex_index(), 0);
+                            if extend_edge.get_direction() == Direction::Incoming
+                                && extend_edge.get_edge_label() == 1
+                            {
                                 found_incoming_1_0_1 = true;
                             }
                         }
