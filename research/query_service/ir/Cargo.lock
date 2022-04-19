@@ -2345,6 +2345,7 @@ dependencies = [
  "pegasus_common",
  "pegasus_server",
  "prost 0.9.0",
+ "vec_map",
 ]
 
 [[package]]

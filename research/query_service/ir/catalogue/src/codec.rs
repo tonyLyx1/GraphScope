@@ -375,128 +375,131 @@ impl Encode<Vec<u8>> for Pattern {
 /// Unit Testing
 #[cfg(test)]
 mod tests {
-	use crate::pattern::*;
-	use crate::codec::*;
-	use ascii::{self, ToAsciiChar, AsciiString};
+    use ascii::{self, AsciiString, ToAsciiChar};
 
-	fn build_pattern_testcase_1() -> Pattern {
-		let pattern_edge1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
-		let pattern_edge2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
-		let pattern_vec = vec![pattern_edge1, pattern_edge2];
-		Pattern::from(pattern_vec)
-	}
+    use crate::codec::*;
+    use crate::pattern::*;
 
-	fn build_pattern_testcase_2() -> Pattern {
-		let edge_1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
-		let edge_2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
-		let edge_3 = PatternEdge::new(2, 3, 1, 2, 2, 3);
-		let edge_4 = PatternEdge::new(3, 4, 0, 3, 1, 4);
-		let edge_5 = PatternEdge::new(4, 5, 1, 3, 2, 4);
-		let edge_6 = PatternEdge::new(5, 6, 3, 2, 4, 3);
-		let pattern_edges = vec![edge_1, edge_2, edge_3, edge_4, edge_5, edge_6];
-		Pattern::from(pattern_edges)
-	}
+    fn build_pattern_testcase_1() -> Pattern {
+        let pattern_edge1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
+        let pattern_edge2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
+        let pattern_vec = vec![pattern_edge1, pattern_edge2];
+        Pattern::from(pattern_vec)
+    }
 
-	#[test]
-	fn test_create_encode_unit_from_edge() {
-		let pattern = build_pattern_testcase_1();
-		let encode_unit_1 = pattern.get_edge_encode_unit_by_id(0);
-		assert_eq!(encode_unit_1.edge_label, 1);
-		assert_eq!(encode_unit_1.start_v_label, 1);
-		assert_eq!(encode_unit_1.end_v_label, 2);
-		assert_eq!(encode_unit_1.edge_direction, Direction::Out);
-		assert_eq!(encode_unit_1.start_v_index, 0);
-		assert_eq!(encode_unit_1.end_v_index, 0);
-		let encode_unit_2 = pattern.get_edge_encode_unit_by_id(1);
-		assert_eq!(encode_unit_2.edge_label, 2);
-		assert_eq!(encode_unit_2.start_v_label, 1);
-		assert_eq!(encode_unit_2.end_v_label, 3);
-		assert_eq!(encode_unit_2.edge_direction, Direction::Out);
-		assert_eq!(encode_unit_2.start_v_index, 0);
-		assert_eq!(encode_unit_2.end_v_index, 0);
-	}
+    fn build_pattern_testcase_2() -> Pattern {
+        let edge_1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
+        let edge_2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
+        let edge_3 = PatternEdge::new(2, 3, 1, 2, 2, 3);
+        let edge_4 = PatternEdge::new(3, 4, 0, 3, 1, 4);
+        let edge_5 = PatternEdge::new(4, 5, 1, 3, 2, 4);
+        let edge_6 = PatternEdge::new(5, 6, 3, 2, 4, 3);
+        let pattern_edges = vec![edge_1, edge_2, edge_3, edge_4, edge_5, edge_6];
+        Pattern::from(pattern_edges)
+    }
 
-	#[test]
-	fn test_initialize_encoder_from_parameter_case1() {
-		let encoder = Encoder::initialize(2, 3, 4, 5);
-		assert_eq!(encoder.edge_label_bit_num, 2);
-		assert_eq!(encoder.vertex_label_bit_num, 3);
-		assert_eq!(encoder.edge_direction_bit_num, 4);
-		assert_eq!(encoder.vertex_index_bit_num, 5);
-	}
+    #[test]
+    fn test_create_encode_unit_from_edge() {
+        let pattern = build_pattern_testcase_1();
+        let encode_unit_1 = pattern.get_edge_encode_unit_by_id(0);
+        assert_eq!(encode_unit_1.edge_label, 1);
+        assert_eq!(encode_unit_1.start_v_label, 1);
+        assert_eq!(encode_unit_1.end_v_label, 2);
+        assert_eq!(encode_unit_1.edge_direction, Direction::Out);
+        assert_eq!(encode_unit_1.start_v_index, 0);
+        assert_eq!(encode_unit_1.end_v_index, 0);
+        let encode_unit_2 = pattern.get_edge_encode_unit_by_id(1);
+        assert_eq!(encode_unit_2.edge_label, 2);
+        assert_eq!(encode_unit_2.start_v_label, 1);
+        assert_eq!(encode_unit_2.end_v_label, 3);
+        assert_eq!(encode_unit_2.edge_direction, Direction::Out);
+        assert_eq!(encode_unit_2.start_v_index, 0);
+        assert_eq!(encode_unit_2.end_v_index, 0);
+    }
 
-	#[test]
-	fn test_initialize_encoder_from_parameter_case2() {
-		let encoder = Encoder::initialize(2, 2, 2, 2);
-		assert_eq!(encoder.edge_label_bit_num, 2);
-		assert_eq!(encoder.vertex_label_bit_num, 2);
-		assert_eq!(encoder.edge_direction_bit_num, 2);
-		assert_eq!(encoder.vertex_index_bit_num, 2);
-	}
+    #[test]
+    fn test_initialize_encoder_from_parameter_case1() {
+        let encoder = Encoder::initialize(2, 3, 4, 5);
+        assert_eq!(encoder.edge_label_bit_num, 2);
+        assert_eq!(encoder.vertex_label_bit_num, 3);
+        assert_eq!(encoder.edge_direction_bit_num, 4);
+        assert_eq!(encoder.vertex_index_bit_num, 5);
+    }
 
-	#[test]
-	fn test_initialize_encoder_from_pattern_case1() {
-		let pattern = build_pattern_testcase_1();
-		let default_vertex_index_bit_num = 0;
-		let encoder = Encoder::initialize_from_pattern(&pattern, default_vertex_index_bit_num);
-		assert_eq!(encoder.edge_label_bit_num, 1);
-		assert_eq!(encoder.vertex_label_bit_num, 2);
-		assert_eq!(encoder.edge_direction_bit_num, 2);
-		assert_eq!(encoder.vertex_index_bit_num, 1);
-	}
+    #[test]
+    fn test_initialize_encoder_from_parameter_case2() {
+        let encoder = Encoder::initialize(2, 2, 2, 2);
+        assert_eq!(encoder.edge_label_bit_num, 2);
+        assert_eq!(encoder.vertex_label_bit_num, 2);
+        assert_eq!(encoder.edge_direction_bit_num, 2);
+        assert_eq!(encoder.vertex_index_bit_num, 2);
+    }
 
-	#[test]
-	fn test_initialize_encoder_from_pattern_case2() {
-		let pattern = build_pattern_testcase_2();
-		let default_vertex_index_bit_num = 2;
-		let encoder = Encoder::initialize_from_pattern(&pattern, default_vertex_index_bit_num);
-		assert_eq!(encoder.edge_label_bit_num, 3);
-		assert_eq!(encoder.vertex_label_bit_num, 2);
-		assert_eq!(encoder.edge_direction_bit_num, 2);
-		assert_eq!(encoder.vertex_index_bit_num, 2);
-	}
+    #[test]
+    fn test_initialize_encoder_from_pattern_case1() {
+        let pattern = build_pattern_testcase_1();
+        let default_vertex_index_bit_num = 0;
+        let encoder = Encoder::initialize_from_pattern(&pattern, default_vertex_index_bit_num);
+        assert_eq!(encoder.edge_label_bit_num, 1);
+        assert_eq!(encoder.vertex_label_bit_num, 2);
+        assert_eq!(encoder.edge_direction_bit_num, 2);
+        assert_eq!(encoder.vertex_index_bit_num, 1);
+    }
 
-	#[test]
-	fn test_encode_ascii_string_from_encode_unit() {
-		let pattern = build_pattern_testcase_1();
-		let encoder = Encoder::initialize(2, 2, 2, 2);
-		let encode_unit_1 = pattern.get_edge_encode_unit_by_id(0);
-		let encode_string_1 = <PatternEdgeEncodeUnit as Encode<AsciiString>>::encode_to(&encode_unit_1, &encoder);
-		let mut expected_encode_string_1: AsciiString = AsciiString::new();
-		let ascii_char_1 = (11 as u8).to_ascii_char().unwrap();
-		let ascii_char_2 = (0 as u8).to_ascii_char().unwrap();
-		expected_encode_string_1.push(ascii_char_1);
-		expected_encode_string_1.push(ascii_char_2);
-		assert_eq!(encode_string_1.len(), 2);
-		assert_eq!(encode_string_1, expected_encode_string_1);
-		let encode_unit_2 = pattern.get_edge_encode_unit_by_id(1);
-		let encode_string_2 = <PatternEdgeEncodeUnit as Encode<AsciiString>>::encode_to(&encode_unit_2, &encoder);
-		let mut expected_encode_string_2: AsciiString = AsciiString::new();
-		let ascii_char_1 = (19 as u8).to_ascii_char().unwrap();
-		let ascii_char_2 = (64 as u8).to_ascii_char().unwrap();
-		expected_encode_string_2.push(ascii_char_1);
-		expected_encode_string_2.push(ascii_char_2);
-		assert_eq!(encode_string_2.len(), 2);
-		assert_eq!(encode_string_2, expected_encode_string_2);
-	}
+    #[test]
+    fn test_initialize_encoder_from_pattern_case2() {
+        let pattern = build_pattern_testcase_2();
+        let default_vertex_index_bit_num = 2;
+        let encoder = Encoder::initialize_from_pattern(&pattern, default_vertex_index_bit_num);
+        assert_eq!(encoder.edge_label_bit_num, 3);
+        assert_eq!(encoder.vertex_label_bit_num, 2);
+        assert_eq!(encoder.edge_direction_bit_num, 2);
+        assert_eq!(encoder.vertex_index_bit_num, 2);
+    }
 
-	#[test]
-	fn test_pattern_encode_value_case_1() {
-		let pattern = build_pattern_testcase_1();
-		let encoder = Encoder::initialize(2, 2, 2, 2);
-		let encode_value = <Pattern as Encode<AsciiString>>::encode_to(&pattern, &encoder);
-		let mut expected_encode_string_1: AsciiString = AsciiString::new();
-		let ascii_char_1 = (11 as u8).to_ascii_char().unwrap();
-		let ascii_char_2 = (0 as u8).to_ascii_char().unwrap();
-		expected_encode_string_1.push(ascii_char_1);
-		expected_encode_string_1.push(ascii_char_2);
-		let mut expected_encode_string_2: AsciiString = AsciiString::new();
-		let ascii_char_1 = (19 as u8).to_ascii_char().unwrap();
-		let ascii_char_2 = (64 as u8).to_ascii_char().unwrap();
-		expected_encode_string_2.push(ascii_char_1);
-		expected_encode_string_2.push(ascii_char_2);
-		let expected_encode_value = expected_encode_string_1 + &expected_encode_string_2;
+    #[test]
+    fn test_encode_ascii_string_from_encode_unit() {
+        let pattern = build_pattern_testcase_1();
+        let encoder = Encoder::initialize(2, 2, 2, 2);
+        let encode_unit_1 = pattern.get_edge_encode_unit_by_id(0);
+        let encode_string_1 =
+            <PatternEdgeEncodeUnit as Encode<AsciiString>>::encode_to(&encode_unit_1, &encoder);
+        let mut expected_encode_string_1: AsciiString = AsciiString::new();
+        let ascii_char_1 = (11 as u8).to_ascii_char().unwrap();
+        let ascii_char_2 = (0 as u8).to_ascii_char().unwrap();
+        expected_encode_string_1.push(ascii_char_1);
+        expected_encode_string_1.push(ascii_char_2);
+        assert_eq!(encode_string_1.len(), 2);
+        assert_eq!(encode_string_1, expected_encode_string_1);
+        let encode_unit_2 = pattern.get_edge_encode_unit_by_id(1);
+        let encode_string_2 =
+            <PatternEdgeEncodeUnit as Encode<AsciiString>>::encode_to(&encode_unit_2, &encoder);
+        let mut expected_encode_string_2: AsciiString = AsciiString::new();
+        let ascii_char_1 = (19 as u8).to_ascii_char().unwrap();
+        let ascii_char_2 = (64 as u8).to_ascii_char().unwrap();
+        expected_encode_string_2.push(ascii_char_1);
+        expected_encode_string_2.push(ascii_char_2);
+        assert_eq!(encode_string_2.len(), 2);
+        assert_eq!(encode_string_2, expected_encode_string_2);
+    }
 
-		assert_eq!(encode_value, expected_encode_value);
-	}
+    #[test]
+    fn test_pattern_encode_value_case_1() {
+        let pattern = build_pattern_testcase_1();
+        let encoder = Encoder::initialize(2, 2, 2, 2);
+        let encode_value = <Pattern as Encode<AsciiString>>::encode_to(&pattern, &encoder);
+        let mut expected_encode_string_1: AsciiString = AsciiString::new();
+        let ascii_char_1 = (11 as u8).to_ascii_char().unwrap();
+        let ascii_char_2 = (0 as u8).to_ascii_char().unwrap();
+        expected_encode_string_1.push(ascii_char_1);
+        expected_encode_string_1.push(ascii_char_2);
+        let mut expected_encode_string_2: AsciiString = AsciiString::new();
+        let ascii_char_1 = (19 as u8).to_ascii_char().unwrap();
+        let ascii_char_2 = (64 as u8).to_ascii_char().unwrap();
+        expected_encode_string_2.push(ascii_char_1);
+        expected_encode_string_2.push(ascii_char_2);
+        let expected_encode_value = expected_encode_string_1 + &expected_encode_string_2;
+
+        assert_eq!(encode_value, expected_encode_value);
+    }
 }
