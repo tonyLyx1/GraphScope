@@ -13,11 +13,13 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
-use std::cmp::Ordering;
+use std::cmp::{max, Ordering};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use fast_math::log2;
 
 use super::extend_step::{ExtendEdge, ExtendStep};
 use super::pattern_meta::PatternMeta;
+use super::codec::PatternEdgeEncodeUnit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Direction {
@@ -52,6 +54,87 @@ pub struct Pattern {
     pub vertices: BTreeMap<i32, PatternVertex>,
     pub edge_label_map: HashMap<i32, BTreeSet<i32>>,
     pub vertex_label_map: HashMap<i32, BTreeSet<i32>>,
+}
+
+/// Public Functions of Pattern
+impl Pattern {
+    /// ### Get Edges References
+    pub fn get_edges(&self) -> &BTreeMap<i32, PatternEdge> {
+        &self.edges
+    }
+
+    /// ### Get Vertices References
+    pub fn get_vertices(&self) -> &BTreeMap<i32, PatternVertex> {
+        &self.vertices
+    }
+
+    /// ### Get PatternEdge Reference from Edge ID
+    pub fn get_edge_from_id(&self, edge_id: i32) -> &PatternEdge {
+        self.edges.get(&edge_id).unwrap()
+    }
+
+    /// ### Get PatternVertex Reference from Vertex ID
+    pub fn get_vertex_from_id(&self, vertex_id: i32) -> &PatternVertex {
+        self.vertices.get(&vertex_id).unwrap()
+    }
+
+    /// ### [Public] Get the order of both start and end vertices of an edge
+    pub fn get_edge_vertices_order(&self, edge_index: i32) -> (i32, i32) {
+        let edge = self.get_edge_from_id(edge_index);
+        let start_v_order = self.get_vertex_index(&edge.start_v_id);
+        let end_v_order = self.get_vertex_index(&edge.end_v_id);
+        (start_v_order, end_v_order)
+    }
+
+    /// ### Get the total number of edges in the pattern
+    pub fn get_edge_num(&self) -> usize {
+        self.edges.len()
+    }
+
+    /// ### Get the total number of vertices in the pattern
+    pub fn get_vertex_num(&self) -> usize {
+        println!("Vertex Num: {}", self.vertices.len());
+        self.vertices.len()
+    }
+
+    /// ### Get the total number of edge labels in the pattern
+    pub fn get_edge_label_num(&self) -> usize {
+        self.edge_label_map.len()
+    }
+
+    /// ### Compute at least how many bits are needed to represent edge labels
+    /// At least 1 bit
+    pub fn get_min_edge_label_bit_num(&self) -> u8 {
+        max(1, log2(self.get_edge_num() as f32).ceil() as u8)
+    }
+
+    /// ### Get the total number of vertex labels in the pattern
+    pub fn get_vertex_label_num(&self) -> usize {
+        self.vertex_label_map.len()
+    }
+
+    /// ### Compute at least how many bits are needed to represent vertex labels
+    /// At least 1 bit
+    pub fn get_min_vertex_label_bit_num(&self) -> u8 {
+        max(1, log2(self.get_vertex_num() as f32).ceil() as u8)
+    }
+
+    /// ### Compute at least how many bits are needed to represent vertices with the same label
+    /// At least 1 bit
+    pub fn get_min_vertex_index_bit_num(&self) -> u8 {
+        // iterate through the hashmap and compute how many vertices have the same label in one set
+        let mut min_index_bit_num: u8 = 1;
+        for (_, value) in self.vertex_label_map.iter() {
+            let same_label_vertex_num = value.len() as u64;
+            let index_bit_num: u8 = log2(same_label_vertex_num as f32).ceil() as u8;
+            if index_bit_num > min_index_bit_num {
+                min_index_bit_num = index_bit_num;
+            }
+        }
+
+        println!("Min Index Bit Num: {}", min_index_bit_num);
+        min_index_bit_num
+    }
 }
 
 impl Pattern {
@@ -123,6 +206,27 @@ impl Pattern {
         }
         ordered_edges.sort_by(|e1_id, e2_id| self.cmp_edges(*e1_id, *e2_id));
         ordered_edges
+    }
+
+    /// ### Get Vertex Order from Vertex Index Reference
+    fn get_vertex_index(&self, vertex_index: &i32) -> i32 {
+        self.vertices.get(vertex_index).unwrap().index
+    }
+
+    pub fn get_edge_encode_unit_by_id(&self, edge_id: i32) -> PatternEdgeEncodeUnit {
+        let edge = self.get_edge_from_id(edge_id);
+        let start_v_label = edge.start_v_label;
+        let end_v_label = edge.end_v_label;
+        let (start_v_index, end_v_index) = self.get_edge_vertices_order(edge_id);
+
+        PatternEdgeEncodeUnit::new(
+            edge.label,
+            start_v_label,
+            end_v_label,
+            Direction::Out,
+            start_v_index,
+            end_v_index,
+        )
     }
 }
 
