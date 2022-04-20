@@ -13,52 +13,60 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
-use std::collections::BTreeMap;
-use crate::pattern::*;
-use crate::encoder::*;
-use crate::codec::{Encode, Decode};
-use ascii::{AsciiString};
+use std::collections::{BTreeMap, VecDeque};
+
+use super::pattern::Direction;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendEdge {
-    pub start_v_label: u64,
-    pub start_v_index: u64,
-    pub edge_label: u64,
-    pub dir: Direction,
+    start_v_label: i32,
+    start_v_index: i32,
+    edge_label: i32,
+    dir: Direction,
+}
+
+impl ExtendEdge {
+    pub fn new(start_v_label: i32, start_v_index: i32, edge_label: i32, dir: Direction) -> ExtendEdge {
+        ExtendEdge { start_v_label, start_v_index, edge_label, dir }
+    }
+
+    pub fn get_start_vertex_label(&self) -> i32 {
+        self.start_v_label
+    }
+
+    pub fn get_start_vertex_index(&self) -> i32 {
+        self.start_v_index
+    }
+
+    pub fn get_edge_label(&self) -> i32 {
+        self.edge_label
+    }
+
+    pub fn get_direction(&self) -> Direction {
+        self.dir
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct ExtendStep {
-    // pattern: &Pattern,
-    target_v_label: u64,
+    pub target_v_label: i32,
     // extend edges are classified by their start_v_labels and start_v_indices
-    extend_edges: BTreeMap<(u64, u64), Vec<ExtendEdge>>,
+    pub extend_edges: BTreeMap<(i32, i32), Vec<ExtendEdge>>,
 }
 
 impl ExtendStep {
-    /// ### Compute the index of target vertex based on Qk-1
-    pub fn get_target_v_index(&self) -> u64 {
-        let target_v_index = 0;
-        target_v_index
-    }
-
-    /// ### Getter of target_v_label
-    pub fn get_target_v_label(&self) -> u64 {
+    pub fn get_target_v_label(&self) -> i32 {
         self.target_v_label
     }
 
-    /// ### Getter of extend_edges reference
-    pub fn get_extend_edges(&self) -> &BTreeMap<(u64, u64), Vec<ExtendEdge>> {
+    pub fn get_extend_edges(&self) -> &BTreeMap<(i32, i32), Vec<ExtendEdge>> {
         &self.extend_edges
     }
 }
 
-impl From<(u64, Vec<ExtendEdge>)> for ExtendStep {
-    fn from((target_v_label, edges): (u64, Vec<ExtendEdge>)) -> ExtendStep {
-        let mut new_extend_step = ExtendStep {
-            target_v_label,
-            extend_edges: BTreeMap::new()
-        };
+impl From<(i32, Vec<ExtendEdge>)> for ExtendStep {
+    fn from((target_v_label, edges): (i32, Vec<ExtendEdge>)) -> ExtendStep {
+        let mut new_extend_step = ExtendStep { target_v_label, extend_edges: BTreeMap::new() };
         for edge in edges {
             let edge_vec = new_extend_step
                 .extend_edges
@@ -70,11 +78,28 @@ impl From<(u64, Vec<ExtendEdge>)> for ExtendStep {
     }
 }
 
-// Unit Test
+pub fn get_subsets<T: Clone>(origin_vec: Vec<T>) -> Vec<Vec<T>> {
+    let n = origin_vec.len();
+    let mut set_collections = Vec::with_capacity((2 as usize).pow(n as u32));
+    let mut queue = VecDeque::new();
+    for (i, element) in origin_vec.iter().enumerate() {
+        queue.push_back((vec![element.clone()], i + 1));
+    }
+    while queue.len() > 0 {
+        let (subset, max_index) = queue.pop_front().unwrap();
+        set_collections.push(subset.clone());
+        for i in max_index..n {
+            let mut new_subset = subset.clone();
+            new_subset.push(origin_vec[i].clone());
+            queue.push_back((new_subset, i + 1));
+        }
+    }
+    set_collections
+}
+
 #[cfg(test)]
 mod tests {
     use crate::pattern::*;
-    use crate::encoder::*;
     use crate::extend_step::*;
 
     fn build_extend_step_case1() -> ExtendStep {

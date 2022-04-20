@@ -68,6 +68,16 @@ pub struct LabelMeta {
     id: i32,
 }
 
+impl LabelMeta {
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn get_id(&self) -> i32 {
+        self.id
+    }
+}
+
 impl Default for LabelMeta {
     fn default() -> Self {
         Self { name: "INVALID".into(), id: INVALID_META_ID }
@@ -169,6 +179,10 @@ impl Schema {
 
     pub fn is_table_id(&self) -> bool {
         self.is_table_id
+    }
+
+    pub fn get_pattern_schema_info(&self) -> (BTreeMap<String, i32>, BTreeMap<String, Vec<(LabelMeta, LabelMeta)>>) {
+        (self.table_map.clone(), self.relation_labels.clone())
     }
 }
 
@@ -622,6 +636,14 @@ impl PlanMeta {
                 (false, new_tag_id)
             }
         }
+    }
+
+    pub fn get_tag_ids(&self) -> Vec<(NameOrId, u32)> {
+        self.tag_ids
+            .clone()
+            .into_iter()
+            .map(|x| x)
+            .collect()
     }
 
     pub fn set_curr_node(&mut self, curr_node: u32) {
