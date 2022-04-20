@@ -73,6 +73,14 @@ impl ExtendStep {
         self.extend_edges.len()
     }
 
+    pub fn get_extend_edges_num(&self) -> usize {
+        let mut edges_num = 0;
+        for (_, edges) in &self.extend_edges {
+            edges_num += edges.len()
+        }
+        edges_num
+    }
+
     pub fn get_extend_edges_by_start_v(&self, v_label: i32, v_index: i32) -> Option<&Vec<ExtendEdge>> {
         self.extend_edges.get(&(v_label, v_index))
     }

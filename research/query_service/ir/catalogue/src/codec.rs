@@ -19,7 +19,7 @@ use ascii::AsciiString;
 use ascii::ToAsciiChar;
 
 use super::pattern::{Direction, Pattern};
-use crate::extend_step::ExtendEdge;
+use crate::extend_step::{ExtendEdge, ExtendStep};
 pub trait Encode<T> {
     fn encode_to(&self, encoder: &Encoder) -> T;
 }
@@ -117,11 +117,20 @@ impl Encoder {
     /// storage_unit_bit_num: how many valid bits a storage unit has
     ///
     /// Remark: the storage_unit_bit_num refers to valid bits. For ascii char, it is u8 but can only take 7 bits
-    pub fn get_storage_unit_num_per_encode_unit(&self, storage_unit_bit_num: u8) -> u8 {
-        let sum_bit_num = 1 * self.edge_label_bit_num
+    pub fn get_storage_unit_num_per_pattern_edge_unit(&self, storage_unit_bit_num: u8) -> u8 {
+        let sum_bit_num = self.edge_label_bit_num
             + 2 * self.vertex_label_bit_num
-            + 1 * self.edge_direction_bit_num
+            + self.edge_direction_bit_num
             + 2 * self.vertex_index_bit_num;
+
+        (sum_bit_num - 1) / storage_unit_bit_num + 1
+    }
+
+    pub fn get_storage_unit_num_per_extend_edge(&self, storage_unit_bit_num: u8) -> u8 {
+        let sum_bit_num = self.vertex_label_bit_num
+            + self.vertex_index_bit_num
+            + self.edge_label_bit_num
+            + self.edge_direction_bit_num;
 
         (sum_bit_num - 1) / storage_unit_bit_num + 1
     }
@@ -197,7 +206,7 @@ impl Encode<AsciiString> for PatternEdgeEncodeUnit {
             encoder.get_all_member_variable();
         let storage_unit_valid_bit_num = 7;
         let ascii_char_num_per_encode_unit =
-            encoder.get_storage_unit_num_per_encode_unit(storage_unit_valid_bit_num);
+            encoder.get_storage_unit_num_per_pattern_edge_unit(storage_unit_valid_bit_num);
         // Compute Value head/tail for each field
         let (end_v_index_head, end_v_index_tail) = (v_index_bit_num - 1, 0);
         let (start_v_index_head, start_v_index_tail) =
@@ -264,7 +273,7 @@ impl Encode<Vec<u8>> for PatternEdgeEncodeUnit {
             encoder.get_all_member_variable();
         let storage_unit_valid_bit_num = 8;
         let ascii_char_num_per_encode_unit =
-            encoder.get_storage_unit_num_per_encode_unit(storage_unit_valid_bit_num);
+            encoder.get_storage_unit_num_per_pattern_edge_unit(storage_unit_valid_bit_num);
         // Compute Value head/tail for each field
         let (end_v_index_head, end_v_index_tail) = (v_index_bit_num - 1, 0);
         let (start_v_index_head, start_v_index_tail) =
@@ -317,7 +326,6 @@ impl Encode<Vec<u8>> for PatternEdgeEncodeUnit {
             );
             encode_vec.push(char_value);
         }
-
         encode_vec
     }
 }
@@ -375,7 +383,133 @@ impl Encode<Vec<u8>> for Pattern {
 
 impl Encode<Vec<u8>> for ExtendEdge {
     fn encode_to(&self, encoder: &Encoder) -> Vec<u8> {
-        Vec::new()
+        let start_v_label = self.get_start_vertex_label();
+        let start_v_index = self.get_start_vertex_index();
+        let edge_label = self.get_edge_label();
+        let dir = self.get_direction();
+        let (edge_label_bit_num, v_label_bit_num, edge_dir_bit_num, v_index_bit_num) =
+            encoder.get_all_member_variable();
+        let storage_unit_valid_bit_num = 8;
+        let ascii_char_num_per_extend_edge = encoder.get_storage_unit_num_per_extend_edge(storage_unit_valid_bit_num);
+        // Compute value head & tail for each field
+        let (dir_head, dir_tail) = (edge_dir_bit_num-1, 0);
+        let (edge_label_head, edge_label_tail) = (dir_head + edge_label_bit_num, dir_head + 1);
+        let (start_v_index_head, start_v_index_tail) = (edge_label_head + v_index_bit_num, edge_label_head + 1);
+        let (start_v_label_head, start_v_label_tail) = (start_v_index_head + v_label_bit_num, start_v_index_head + 1);
+        // Compute each character
+        let mut encode_vec = Vec::with_capacity(ascii_char_num_per_extend_edge as usize);
+        for i in (0..ascii_char_num_per_extend_edge).rev() {
+            let char_value = encoder.get_encode_numerical_value(
+                start_v_label, 
+                start_v_label_head, 
+                start_v_label_tail, 
+                storage_unit_valid_bit_num, 
+                i
+            ) + encoder.get_encode_numerical_value(
+                start_v_index, 
+                start_v_index_head, 
+                start_v_index_tail, 
+                storage_unit_valid_bit_num, 
+                i
+            ) + encoder.get_encode_numerical_value(
+                edge_label, 
+                edge_label_head, 
+                edge_label_tail, 
+                storage_unit_valid_bit_num, 
+                i
+            ) + encoder.get_encode_numerical_value(
+                dir as i32, 
+                dir_head, 
+                dir_tail, 
+                storage_unit_valid_bit_num, 
+                i
+            );
+            encode_vec.push(char_value);
+        }
+        encode_vec
+    }
+}
+
+impl Encode<AsciiString> for ExtendEdge {
+    fn encode_to(&self, encoder: &Encoder) -> AsciiString {
+        let start_v_label = self.get_start_vertex_label();
+        let start_v_index = self.get_start_vertex_index();
+        let edge_label = self.get_edge_label();
+        let dir = self.get_direction();
+        let (edge_label_bit_num, v_label_bit_num, edge_dir_bit_num, v_index_bit_num) =
+            encoder.get_all_member_variable();
+        let storage_unit_valid_bit_num = 7;
+        let ascii_char_num_per_extend_edge = encoder.get_storage_unit_num_per_extend_edge(storage_unit_valid_bit_num);
+        // Compute value head & tail for each field
+        let (dir_head, dir_tail) = (edge_dir_bit_num-1, 0);
+        let (edge_label_head, edge_label_tail) = (dir_head + edge_label_bit_num, dir_head + 1);
+        let (start_v_index_head, start_v_index_tail) = (edge_label_head + v_index_bit_num, edge_label_head + 1);
+        let (start_v_label_head, start_v_label_tail) = (start_v_index_head + v_label_bit_num, start_v_index_head + 1);
+        // Compute each character
+        let mut encode_str = AsciiString::with_capacity(ascii_char_num_per_extend_edge as usize);
+        for i in (0..ascii_char_num_per_extend_edge).rev() {
+            let char_value = encoder.get_encode_numerical_value(
+                start_v_label, 
+                start_v_label_head, 
+                start_v_label_tail, 
+                storage_unit_valid_bit_num, 
+                i
+            ) + encoder.get_encode_numerical_value(
+                start_v_index, 
+                start_v_index_head, 
+                start_v_index_tail, 
+                storage_unit_valid_bit_num, 
+                i
+            ) + encoder.get_encode_numerical_value(
+                edge_label, 
+                edge_label_head, 
+                edge_label_tail, 
+                storage_unit_valid_bit_num, 
+                i
+            ) + encoder.get_encode_numerical_value(
+                dir as i32, 
+                dir_head, 
+                dir_tail, 
+                storage_unit_valid_bit_num, 
+                i
+            );
+            encode_str.push(char_value.to_ascii_char().unwrap());
+        }
+        encode_str
+    }
+}
+
+impl Encode<Vec<u8>> for ExtendStep {
+    fn encode_to(&self, encoder: &Encoder) -> Vec<u8> {
+        let storage_unit_valid_bit_num = 8;
+        let ascii_char_num_per_extend_edge = encoder.get_storage_unit_num_per_extend_edge(storage_unit_valid_bit_num);
+        let extend_edges_num = self.get_extend_edges_num();
+        let mut encode_vec = Vec::with_capacity(1 + extend_edges_num * ascii_char_num_per_extend_edge as usize);
+        encode_vec.push(self.get_target_v_label() as u8);
+        for (_, extend_edges) in self.iter() {
+            for extend_edge in extend_edges {
+                let edge_code_vec:Vec<u8> = extend_edge.encode_to(encoder);
+                encode_vec.extend(&edge_code_vec);
+            }
+        }
+        encode_vec
+    }
+}
+
+impl Encode<AsciiString> for ExtendStep {
+    fn encode_to(&self, encoder: &Encoder) -> AsciiString {
+        let storage_unit_valid_bit_num = 7;
+        let ascii_char_num_per_extend_edge = encoder.get_storage_unit_num_per_extend_edge(storage_unit_valid_bit_num);
+        let extend_edges_num = self.get_extend_edges_num();
+        let mut encode_str = AsciiString::with_capacity(1 + extend_edges_num * ascii_char_num_per_extend_edge as usize);
+        encode_str.push((self.get_target_v_label() as u8).to_ascii_char().unwrap());
+        for (_, extend_edges) in self.iter() {
+            for extend_edge in extend_edges {
+                let edge_code_str:AsciiString = extend_edge.encode_to(encoder);
+                encode_str.push_str(&edge_code_str);
+            }
+        }
+        encode_str
     }
 }
 
