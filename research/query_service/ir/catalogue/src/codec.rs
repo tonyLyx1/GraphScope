@@ -146,7 +146,6 @@ impl Encode<Vec<u8>> for Pattern {
 }
 
 
-
 // impl Encode for ExtendEdge {
 //   /// ### Convert ExtendEdge to EncodeUnit
 //   /// Since ExtendEdge does not contain information about the ending vertex,
@@ -181,3 +180,96 @@ impl Encode<Vec<u8>> for Pattern {
 //     encode_value
 //   }
 // }
+
+
+#[cfg(test)]
+mod tests {
+  use crate::encoder::*;
+	use crate::pattern::*;
+	use crate::extend_step::*;
+	use crate::codec::{Encode, Decode};
+	use crate::pattern_edge::*;
+	use ascii::{self, ToAsciiChar, AsciiString};
+
+	fn build_pattern_testcase_1() -> Pattern {
+		let pattern_edge1 = PatternEdge::create(0, 1, 0, 1, 1, 2);
+		let pattern_edge2 = PatternEdge::create(1, 2, 0, 2, 1, 3);
+		let pattern_vec = vec![pattern_edge1, pattern_edge2];
+		Pattern::from(pattern_vec)
+	}
+
+	fn build_pattern_testcase_2() -> Pattern {
+		let edge_1 = PatternEdge::create(0, 1, 0, 1, 1, 2);
+		let edge_2 = PatternEdge::create(1, 2, 0, 2, 1, 3);
+		let edge_3 = PatternEdge::create(2, 3, 1, 2, 2, 3);
+		let edge_4 = PatternEdge::create(3, 4, 0, 3, 1, 4);
+		let edge_5 = PatternEdge::create(4, 5, 1, 3, 2, 4);
+		let edge_6 = PatternEdge::create(5, 6, 3, 2, 4, 3);
+		let pattern_edges = vec![edge_1, edge_2, edge_3, edge_4, edge_5, edge_6];
+		Pattern::from(pattern_edges)
+	}
+
+  /// ### Generate AsciiString from Vector
+  fn generate_asciistring_from_vec(vec: &Vec<u8>) -> AsciiString {
+    let mut output = AsciiString::new();
+    for value in vec {
+      output.push(value.to_ascii_char().unwrap());
+    }
+
+    output
+  }
+
+  #[test]
+	fn encode_unit_to_ascii_string() {
+		let pattern = build_pattern_testcase_1();
+		let encoder = Encoder::initialize(2, 2, 2, 2);
+		let encode_unit_1 = pattern.to_encode_unit_by_edge_id(0);
+		let encode_string_1 = <EncodeUnit as Encode<AsciiString>>::encode_to(&encode_unit_1, &encoder);
+		let expected_encode_string_1: AsciiString = generate_asciistring_from_vec(&vec![11, 0]);
+		assert_eq!(encode_string_1.len(), 2);
+		assert_eq!(encode_string_1, expected_encode_string_1);
+		let encode_unit_2 = pattern.to_encode_unit_by_edge_id(1);
+		let encode_string_2 = <EncodeUnit as Encode<AsciiString>>::encode_to(&encode_unit_2, &encoder);
+		let expected_encode_string_2: AsciiString = generate_asciistring_from_vec(&vec![19, 64]);
+		assert_eq!(encode_string_2.len(), 2);
+		assert_eq!(encode_string_2, expected_encode_string_2);
+	}
+
+  #[test]
+  fn encode_unit_to_vec_u8() {
+    let pattern = build_pattern_testcase_1();
+		let encoder = Encoder::initialize(2, 2, 2, 2);
+		let encode_unit_1 = pattern.to_encode_unit_by_edge_id(0);
+		let encode_vec_1 = <EncodeUnit as Encode<Vec<u8>>>::encode_to(&encode_unit_1, &encoder);
+		let expected_encode_vec_1: Vec<u8> = vec![5, 128];
+		assert_eq!(encode_vec_1.len(), 2);
+		assert_eq!(encode_vec_1, expected_encode_vec_1);
+		let encode_unit_2 = pattern.to_encode_unit_by_edge_id(1);
+		let encode_vec_2 = <EncodeUnit as Encode<Vec<u8>>>::encode_to(&encode_unit_2, &encoder);
+		let expected_encode_vec_2: Vec<u8> = vec![9, 192];
+		assert_eq!(encode_vec_2.len(), 2);
+		assert_eq!(encode_vec_2, expected_encode_vec_2);
+  }
+
+	#[test]
+	fn encode_pattern_to_asciistring_case_1() {
+		let pattern = build_pattern_testcase_1();
+		let encoder = Encoder::initialize(2, 2, 2, 2);
+		let encode_value = <Pattern as Encode<AsciiString>>::encode_to(&pattern, &encoder);
+		let expected_encode_string_1: AsciiString = generate_asciistring_from_vec(&vec![11, 0]);
+		let expected_encode_string_2: AsciiString = generate_asciistring_from_vec(&vec![19, 64]);
+		let expected_encode_value = expected_encode_string_1 + &expected_encode_string_2;
+		assert_eq!(encode_value, expected_encode_value);
+	}
+
+  #[test]
+  fn encode_pattern_to_vec_u8_case_1() {
+    let pattern = build_pattern_testcase_1();
+		let encoder = Encoder::initialize(2, 2, 2, 2);
+		let encode_vec = <Pattern as Encode<Vec<u8>>>::encode_to(&pattern, &encoder);
+		let mut expected_encode_vec_1: Vec<u8> = vec![5, 128];
+		let expected_encode_vec_2: Vec<u8> = vec![9, 192];
+		expected_encode_vec_1.extend(expected_encode_vec_2);
+		assert_eq!(encode_vec, expected_encode_vec_1);
+  }
+}
