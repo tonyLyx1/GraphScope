@@ -19,6 +19,7 @@ use ascii::AsciiString;
 use ascii::ToAsciiChar;
 
 use super::pattern::{Direction, Pattern};
+use crate::extend_step::ExtendEdge;
 pub trait Encode<T> {
     fn encode_to(&self, encoder: &Encoder) -> T;
 }
@@ -372,40 +373,11 @@ impl Encode<Vec<u8>> for Pattern {
     }
 }
 
-// impl Encode for ExtendEdge {
-//   /// ### Convert ExtendEdge to EncodeUnit
-//   /// Since ExtendEdge does not contain information about the ending vertex,
-//   /// the end_v_label and end_v_index are set as 0 and wait for further modification
-//   fn to_encode_unit(&self) -> EncodeUnit {
-//       EncodeUnit::new(self.edge_label, self.start_v_label, 0, self.dir, self.start_v_index, 0)
-//   }
-
-//   fn to_encode_value(&self, encoder: &Encoder) -> AsciiString {
-//     let encode_unit = self.to_encode_unit();
-//     encode_unit.to_encode_value(encoder)
-//   }
-// }
-
-// impl Encode for ExtendStep {
-//   fn to_encode_value(&self, encoder: &Encoder) -> AsciiString {
-//     // Initialize AsciiString
-//     let mut encode_value = AsciiString::new();
-//     // Update the index of the pattern
-//     let target_v_index = self.get_target_v_index();
-//     // Set End Vertex Information on the Encode Units of ExtendEdges
-//     let extend_edges_iter = self.get_extend_edges().iter();
-//     for (_, edges) in extend_edges_iter {
-//         for edge in edges {
-//             let mut encode_unit: EncodeUnit = edge.to_encode_unit();
-//             encode_unit.set_end_v_label(self.get_target_v_label());
-//             encode_unit.set_end_v_index(target_v_index);
-//             encode_value = encode_value + &encode_unit.to_encode_value(encoder);
-//         }
-//     }
-
-//     encode_value
-//   }
-// }
+impl Encode<Vec<u8>> for ExtendEdge {
+    fn encode_to(&self, encoder: &Encoder) -> Vec<u8> {
+        Vec::new()
+    }
+}
 
 /// Unit Testing
 #[cfg(test)]

@@ -13,6 +13,7 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
+use std::collections::btree_map::Iter as ExtendStepIter;
 use std::collections::{BTreeMap, VecDeque};
 
 use super::pattern::Direction;
@@ -49,9 +50,9 @@ impl ExtendEdge {
 
 #[derive(Debug, Clone)]
 pub struct ExtendStep {
-    pub target_v_label: i32,
+    target_v_label: i32,
     // extend edges are classified by their start_v_labels and start_v_indices
-    pub extend_edges: BTreeMap<(i32, i32), Vec<ExtendEdge>>,
+    extend_edges: BTreeMap<(i32, i32), Vec<ExtendEdge>>,
 }
 
 impl ExtendStep {
@@ -59,8 +60,21 @@ impl ExtendStep {
         self.target_v_label
     }
 
-    pub fn get_extend_edges(&self) -> &BTreeMap<(i32, i32), Vec<ExtendEdge>> {
-        &self.extend_edges
+    pub fn iter(&self) -> ExtendStepIter<(i32, i32), Vec<ExtendEdge>> {
+        self.extend_edges.iter()
+    }
+
+    pub fn has_extend_from_start_v(&self, v_label: i32, v_index: i32) -> bool {
+        self.extend_edges
+            .contains_key(&(v_label, v_index))
+    }
+
+    pub fn get_diff_start_v_num(&self) -> usize {
+        self.extend_edges.len()
+    }
+
+    pub fn get_extend_edges_by_start_v(&self, v_label: i32, v_index: i32) -> Option<&Vec<ExtendEdge>> {
+        self.extend_edges.get(&(v_label, v_index))
     }
 }
 
