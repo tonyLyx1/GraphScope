@@ -33,7 +33,7 @@ impl Direction {
         match *self {
             Direction::Out => 0,
             Direction::Incoming => 1,
-            _ => panic!("Error in Converting Direction Enum Type to U8")
+            _ => panic!("Error in Converting Direction Enum Type to U8"),
         }
     }
 }
@@ -133,9 +133,9 @@ impl PatternEdge {
 }
 
 /// Pattern的全部信息，包含所有的点，边信息
-/// 
+///
 /// edge_label_map: 拥有相同label的边的id集合
-/// 
+///
 /// vertex_label_map: 拥有相同label的点的id集合
 #[derive(Debug, Clone)]
 pub struct Pattern {
@@ -300,7 +300,7 @@ impl Pattern {
         match e1.label.cmp(&e2.label) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
-            _ => ()
+            _ => (),
         }
         // Compare the label of starting vertex
         match e1.start_v_label.cmp(&e2.start_v_label) {
@@ -526,7 +526,7 @@ impl Pattern {
                 }
             }
         }
-        
+
         // Add the newly extended pattern vertex to the new pattern
         new_pattern
             .vertex_label_map
@@ -638,10 +638,7 @@ impl From<Vec<PatternEdge>> for Pattern {
                 .or_insert(BTreeSet::new());
             edge_set.insert(edge.id);
             // Add or update the start & end vertex to the new Pattern
-            match new_pattern
-                .vertices
-                .get_mut(&edge.start_v_id)
-            {
+            match new_pattern.vertices.get_mut(&edge.start_v_id) {
                 // the start vertex existed, just update the connection info
                 Some(start_vertex) => {
                     start_vertex
@@ -680,10 +677,7 @@ impl From<Vec<PatternEdge>> for Pattern {
             }
 
             // Add or update the end vertex to the new Pattern
-            match new_pattern
-                .vertices
-                .get_mut(&edge.end_v_id)
-            {
+            match new_pattern.vertices.get_mut(&edge.end_v_id) {
                 // the end vertex existed, just update the connection info
                 Some(end_vertex) => {
                     end_vertex

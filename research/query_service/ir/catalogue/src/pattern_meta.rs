@@ -98,6 +98,7 @@ impl PatternMeta {
                         }
                     }
                 }
+
                 connect_vertices
             }
             None => BTreeSet::new(),

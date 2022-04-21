@@ -99,8 +99,8 @@ pub fn get_subsets<T: Clone>(origin_vec: Vec<T>) -> Vec<Vec<T>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::pattern::*;
     use crate::extend_step::*;
+    use crate::pattern::*;
 
     fn build_extend_step_case1() -> ExtendStep {
         let extend_edge0 =
