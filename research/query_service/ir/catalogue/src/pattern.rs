@@ -18,7 +18,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use fast_math::log2;
 
-use super::codec::PatternEdgeEncodeUnit;
 use super::extend_step::{ExtendEdge, ExtendStep};
 use super::pattern_meta::PatternMeta;
 
@@ -160,8 +159,8 @@ impl Pattern {
     /// ### [Public] Get the order of both start and end vertices of an edge
     pub fn get_edge_vertices_index(&self, edge_index: i32) -> (i32, i32) {
         let edge = self.get_edge_from_id(edge_index);
-        let start_v_index = self.get_vertex_index(&edge.start_v_id);
-        let end_v_index = self.get_vertex_index(&edge.end_v_id);
+        let start_v_index = self.get_vertex_index(edge.start_v_id);
+        let end_v_index = self.get_vertex_index(edge.end_v_id);
         (start_v_index, end_v_index)
     }
 
@@ -365,24 +364,8 @@ impl Pattern {
     }
 
     /// ### Get Vertex Index from Vertex ID Reference
-    fn get_vertex_index(&self, v_id: &i32) -> i32 {
-        self.vertices.get(v_id).unwrap().index
-    }
-
-    pub fn get_edge_encode_unit_by_id(&self, edge_id: i32) -> PatternEdgeEncodeUnit {
-        let edge = self.get_edge_from_id(edge_id);
-        let start_v_label = edge.start_v_label;
-        let end_v_label = edge.end_v_label;
-        let (start_v_index, end_v_index) = self.get_edge_vertices_index(edge_id);
-
-        PatternEdgeEncodeUnit::new(
-            edge.label,
-            start_v_label,
-            end_v_label,
-            Direction::Out,
-            start_v_index,
-            end_v_index,
-        )
+    pub fn get_vertex_index(&self, v_id: i32) -> i32 {
+        self.vertices.get(&v_id).unwrap().index
     }
 }
 
