@@ -147,21 +147,24 @@ impl Pattern {
     }
 
     /// ### Get PatternEdge Reference from Edge ID
-    pub fn get_edge_from_id(&self, edge_id: i32) -> &PatternEdge {
-        self.edges.get(&edge_id).unwrap()
+    pub fn get_edge_from_id(&self, edge_id: i32) -> Option<&PatternEdge> {
+        self.edges.get(&edge_id)
     }
 
     /// ### Get PatternVertex Reference from Vertex ID
-    pub fn get_vertex_from_id(&self, vertex_id: i32) -> &PatternVertex {
-        self.vertices.get(&vertex_id).unwrap()
+    pub fn get_vertex_from_id(&self, vertex_id: i32) -> Option<&PatternVertex> {
+        self.vertices.get(&vertex_id)
     }
 
     /// ### [Public] Get the order of both start and end vertices of an edge
-    pub fn get_edge_vertices_index(&self, edge_index: i32) -> (i32, i32) {
-        let edge = self.get_edge_from_id(edge_index);
-        let start_v_index = self.get_vertex_index(edge.start_v_id);
-        let end_v_index = self.get_vertex_index(edge.end_v_id);
-        (start_v_index, end_v_index)
+    pub fn get_edge_vertices_index(&self, edge_index: i32) -> Option<(i32, i32)> {
+        if let Some(edge) = self.get_edge_from_id(edge_index) {
+            let start_v_index = self.get_vertex_index(edge.start_v_id);
+            let end_v_index = self.get_vertex_index(edge.end_v_id);
+            Some((start_v_index, end_v_index))
+        } else {
+            None
+        }
     }
 
     /// ### Get the total number of edges in the pattern
@@ -304,8 +307,12 @@ impl Pattern {
             _ => (),
         }
         // Get orders for starting vertex
-        let (e1_start_v_order, e1_end_v_order) = self.get_edge_vertices_index(e1.get_id());
-        let (e2_start_v_order, e2_end_v_order) = self.get_edge_vertices_index(e2.get_id());
+        let (e1_start_v_order, e1_end_v_order) = self
+            .get_edge_vertices_index(e1.get_id())
+            .unwrap();
+        let (e2_start_v_order, e2_end_v_order) = self
+            .get_edge_vertices_index(e2.get_id())
+            .unwrap();
         // Compare the order of the starting vertex
         match e1_start_v_order.cmp(&e2_start_v_order) {
             Ordering::Less => return Ordering::Less,

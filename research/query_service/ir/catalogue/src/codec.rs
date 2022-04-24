@@ -13,12 +13,10 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
-use std::collections::BTreeSet;
-
 use ascii::AsciiString;
 use ascii::ToAsciiChar;
 
-use super::pattern::Pattern;
+use super::pattern::{Direction, Pattern};
 use crate::extend_step::{ExtendEdge, ExtendStep};
 use crate::pattern::PatternEdge;
 pub trait Encode<T> {
@@ -76,7 +74,8 @@ impl Encoder {
 
     /// ### Compute the u8 value for each storage unit (AsciiChar or u8)
     pub fn get_encode_numerical_value(
-        value: i32, value_head: usize, value_tail: usize, storage_unit_valid_bit_num: usize, storage_unit_index: usize,
+        value: i32, value_head: usize, value_tail: usize, storage_unit_valid_bit_num: usize,
+        storage_unit_index: usize,
     ) -> u8 {
         let mut output: i32;
         let char_tail = storage_unit_index * storage_unit_valid_bit_num;
@@ -136,6 +135,28 @@ impl Encoder {
         }
         output
     }
+
+    pub fn get_src_code_effective_bit_num(src_code: &Vec<u8>) -> usize {
+        let mut start_pos = 0;
+        for i in start_pos..src_code.len() {
+            if src_code[i] != 0 {
+                break;
+            }
+            start_pos += 1;
+        }
+        if start_pos == src_code.len() {
+            return 0;
+        }
+        let mut start_pos_pos = 1;
+        for i in 1..8 {
+            if src_code[start_pos] >> i != 0 {
+                start_pos_pos += 1;
+            } else {
+                break;
+            }
+        }
+        (src_code.len() - start_pos - 1) * 8 + start_pos_pos
+    }
 }
 
 /// Getters
@@ -164,6 +185,28 @@ pub struct EncodeUnit {
 }
 
 impl EncodeUnit {
+    pub fn get_bits_num(&self) -> usize {
+        let unit_len = self.values.len();
+        if unit_len == 0 {
+            return 0;
+        }
+        self.heads[unit_len] + 1
+    }
+
+    pub fn get_values(&self) -> &Vec<i32> {
+        &self.values
+    }
+
+    pub fn get_heads(&self) -> &Vec<usize> {
+        &self.heads
+    }
+
+    pub fn get_tails(&self) -> &Vec<usize> {
+        &self.tails
+    }
+}
+
+impl EncodeUnit {
     pub fn from_pattern_edge(pattern: &Pattern, pattern_edge: &PatternEdge, encoder: &Encoder) -> Self {
         let edge_label = pattern_edge.get_label();
         let start_v_label = pattern_edge.get_start_vertex_label();
@@ -175,22 +218,34 @@ impl EncodeUnit {
         let vertex_label_bit_num = encoder.get_vertex_label_bit_num();
         let vertex_index_bit_num = encoder.get_vertex_index_bit_num();
 
-        let values = vec![edge_label, start_v_label, end_v_label, start_v_index, end_v_index];
+        let values = vec![end_v_index, start_v_index, end_v_label, start_v_label, edge_label];
         let heads = vec![
-            edge_label_bit_num + 2 * vertex_label_bit_num + 2 * vertex_index_bit_num - 1,
-            2 * vertex_label_bit_num + 2 * vertex_index_bit_num - 1,
-            vertex_label_bit_num + 2 * vertex_index_bit_num - 1,
-            2 * vertex_index_bit_num - 1,
             vertex_index_bit_num - 1,
+            2 * vertex_index_bit_num - 1,
+            vertex_label_bit_num + 2 * vertex_index_bit_num - 1,
+            2 * vertex_label_bit_num + 2 * vertex_index_bit_num - 1,
+            edge_label_bit_num + 2 * vertex_label_bit_num + 2 * vertex_index_bit_num - 1,
         ];
         let tails = vec![
-            2 * vertex_label_bit_num + 2 * vertex_index_bit_num,
-            vertex_label_bit_num + 2 * vertex_index_bit_num,
-            2 * vertex_index_bit_num,
-            vertex_index_bit_num,
             0,
+            vertex_index_bit_num,
+            2 * vertex_index_bit_num,
+            vertex_label_bit_num + 2 * vertex_index_bit_num,
+            2 * vertex_label_bit_num + 2 * vertex_index_bit_num,
         ];
         EncodeUnit { values, heads, tails }
+    }
+
+    pub fn from_pattern(pattern: &Pattern, encoder: &Encoder) -> Self {
+        let mut pattern_encode_unit =
+            EncodeUnit { values: Vec::new(), heads: Vec::new(), tails: Vec::new() };
+        let ordered_edges_id = pattern.get_ordered_edges();
+        for edge_id in ordered_edges_id {
+            let edge = pattern.get_edge_from_id(edge_id).unwrap();
+            let edge_encode_unit = EncodeUnit::from_pattern_edge(pattern, edge, encoder);
+            pattern_encode_unit.extend_by_another_unit(&edge_encode_unit);
+        }
+        pattern_encode_unit
     }
 
     pub fn from_extend_edge(extend_edge: &ExtendEdge, encoder: &Encoder) -> Self {
@@ -204,24 +259,41 @@ impl EncodeUnit {
         let edge_label_bit_num = encoder.get_edge_label_bit_num();
         let direction_bit_num = encoder.get_direction_bit_num();
 
-        let values = vec![start_v_label, start_v_index, edge_label, dir as i32];
+        let values = vec![dir as i32, edge_label, start_v_index, start_v_label];
         let heads = vec![
-            vertex_label_bit_num + vertex_index_bit_num + edge_label_bit_num + direction_bit_num - 1,
-            vertex_index_bit_num + edge_label_bit_num + direction_bit_num - 1,
-            edge_label_bit_num + direction_bit_num - 1,
             direction_bit_num - 1,
+            edge_label_bit_num + direction_bit_num - 1,
+            vertex_index_bit_num + edge_label_bit_num + direction_bit_num - 1,
+            vertex_label_bit_num + vertex_index_bit_num + edge_label_bit_num + direction_bit_num - 1,
         ];
         let tails = vec![
-            vertex_index_bit_num + edge_label_bit_num + direction_bit_num,
-            edge_label_bit_num + direction_bit_num,
-            direction_bit_num,
             0,
+            direction_bit_num,
+            edge_label_bit_num + direction_bit_num,
+            vertex_index_bit_num + edge_label_bit_num + direction_bit_num,
         ];
         EncodeUnit { values, heads, tails }
     }
 
+    pub fn from_extend_step(extend_step: &ExtendStep, encoder: &Encoder) -> Self {
+        let mut extend_step_encode_unit =
+            EncodeUnit { values: Vec::new(), heads: Vec::new(), tails: Vec::new() };
+        for (_, extend_edges) in extend_step.iter() {
+            for extend_edge in extend_edges {
+                let extend_edge_encode_unit = EncodeUnit::from_extend_edge(extend_edge, encoder);
+                extend_step_encode_unit.extend_by_another_unit(&extend_edge_encode_unit);
+            }
+        }
+        extend_step_encode_unit.extend_by_value_and_length(
+            extend_step.get_target_v_label(),
+            encoder.get_vertex_label_bit_num(),
+        );
+        extend_step_encode_unit
+    }
+
     pub fn to_vec_u8(&self, storage_unit_bit_num: usize) -> Vec<u8> {
-        let storage_unit_num = self.heads[0] / storage_unit_bit_num + 1;
+        let unit_len = self.values.len();
+        let storage_unit_num = self.heads[unit_len - 1] / storage_unit_bit_num + 1;
         let mut encode_vec = Vec::with_capacity(storage_unit_num as usize);
         for i in (0..storage_unit_num).rev() {
             let mut unit_value: u8 = 0;
@@ -237,8 +309,30 @@ impl EncodeUnit {
         encode_vec
     }
 
-    pub fn get_bits_num(&self) -> usize {
-        self.heads[0] + 1
+    pub fn extend_by_value_and_length(&mut self, value: i32, length: usize) {
+        let self_unit_len = self.values.len();
+        self.values.push(value);
+        let new_start = if self_unit_len == 0 { 0 } else { self.heads[self_unit_len - 1] + 1 };
+        self.heads.push(new_start + length - 1);
+        self.tails.push(new_start);
+    }
+
+    pub fn extend_by_another_unit(&mut self, other: &EncodeUnit) {
+        let self_unit_len = self.values.len();
+        self.values.extend(other.get_values());
+        let new_start = if self_unit_len == 0 { 0 } else { self.heads[self_unit_len - 1] + 1 };
+        let extend_heads: Vec<usize> = other
+            .get_heads()
+            .into_iter()
+            .map(|head| head + new_start)
+            .collect();
+        let extend_tails: Vec<usize> = other
+            .get_tails()
+            .into_iter()
+            .map(|tail| tail + new_start)
+            .collect();
+        self.heads.extend(&extend_heads);
+        self.tails.extend(&extend_tails);
     }
 }
 
@@ -261,113 +355,91 @@ impl Encode<AsciiString> for EncodeUnit {
 
 impl Encode<Vec<u8>> for Pattern {
     fn encode_to(&self, encoder: &Encoder) -> Vec<u8> {
-        // Initialize an BTreeSet to Store the Encoding Units
-        let mut set = BTreeSet::new();
-        // Encode Each Edge in the Pattern as an Encoding Unit
-        let edges = self.get_edges();
-        for (_, edge) in edges.iter() {
-            let encode_unit = EncodeUnit::from_pattern_edge(self, edge, encoder);
-            let encode_vec: Vec<u8> = encode_unit.encode_to(encoder);
-            set.insert(encode_vec);
-        }
-
-        let mut encode_vec: Vec<u8> = Vec::new();
-        let mut set_iter = set.iter();
-        loop {
-            match set_iter.next() {
-                Some(vec) => encode_vec.extend(vec),
-                None => break,
-            }
-        }
-
-        encode_vec
+        let pattern_encode_unit = EncodeUnit::from_pattern(self, encoder);
+        pattern_encode_unit.encode_to(encoder)
     }
 }
 
 impl Encode<AsciiString> for Pattern {
     fn encode_to(&self, encoder: &Encoder) -> AsciiString {
-        // Initialize an BTreeSet to Store the Encoding Units
-        let mut set = BTreeSet::new();
-        // Encode Each Edge in the Pattern as an Encoding Unit
-        let edges = self.get_edges();
-        for (_, edge) in edges.iter() {
-            let encode_unit = EncodeUnit::from_pattern_edge(self, edge, encoder);
-            let encode_str: AsciiString = encode_unit.encode_to(encoder);
-            set.insert(encode_str);
-        }
-
-        let mut encode_str = AsciiString::new();
-        let mut set_iter = set.iter();
-        loop {
-            match set_iter.next() {
-                Some(value) => encode_str = encode_str + value,
-                None => break,
-            }
-        }
-        encode_str
+        let pattern_encode_unit = EncodeUnit::from_pattern(self, encoder);
+        pattern_encode_unit.encode_to(encoder)
     }
 }
 
 impl Encode<Vec<u8>> for ExtendStep {
     fn encode_to(&self, encoder: &Encoder) -> Vec<u8> {
-        let mut encode_vec = Vec::new();
-        encode_vec.push(self.get_target_v_label() as u8);
-        for (_, extend_edges) in self.iter() {
-            for extend_edge in extend_edges {
-                let edge_code_vec: Vec<u8> =
-                    EncodeUnit::from_extend_edge(extend_edge, encoder).encode_to(encoder);
-                encode_vec.extend(&edge_code_vec);
-            }
-        }
-        encode_vec
+        let extend_step_encode_unit = EncodeUnit::from_extend_step(self, encoder);
+        extend_step_encode_unit.encode_to(encoder)
     }
 }
 
 impl Encode<AsciiString> for ExtendStep {
     fn encode_to(&self, encoder: &Encoder) -> AsciiString {
-        let mut encode_str = AsciiString::new();
-        encode_str.push(
-            (self.get_target_v_label() as u8)
-                .to_ascii_char()
-                .unwrap(),
-        );
-        for (_, extend_edges) in self.iter() {
-            for extend_edge in extend_edges {
-                let edge_code_str: AsciiString =
-                    EncodeUnit::from_extend_edge(extend_edge, encoder).encode_to(encoder);
-                encode_str.push_str(&edge_code_str);
-            }
-        }
-        encode_str
+        let extend_step_encode_unit = EncodeUnit::from_extend_step(self, encoder);
+        extend_step_encode_unit.encode_to(encoder)
     }
 }
 
-// impl Decode<Vec<u8>> for ExtendStep {
-//     fn decode_from(src_code: Vec<u8>, encoder: &Encoder) -> Self {
-//         let vertex_label_bit_num = encoder.get_vertex_label_bit_num();
-//         let vertex_index_bit_num = encoder.get_vertex_index_bit_num();
-//         let edge_label_bit_num = encoder.get_edge_label_bit_num();
-//         let direction_bit_num = encoder.get_direction_bit_num();
+impl Decode<Vec<u8>> for ExtendStep {
+    fn decode_from(src_code: Vec<u8>, encoder: &Encoder) -> Self {
+        let vertex_label_bit_num = encoder.get_vertex_label_bit_num();
+        let vertex_index_bit_num = encoder.get_vertex_index_bit_num();
+        let edge_label_bit_num = encoder.get_edge_label_bit_num();
+        let direction_bit_num = encoder.get_direction_bit_num();
 
-//         let bit_per_extend_edge = vertex_label_bit_num + vertex_index_bit_num + edge_label_bit_num + direction_bit_num;
-//         let src_code_bit_sum = 8 * src_code.len();
-//         let mut unit_tail = 0;
-//         let mut unit_head = bit_per_extend_edge - 1;
-//         let mut extend_edges = Vec::new();
-//         while unit_head < src_code_bit_sum {
-//             let dir_head = unit_tail+direction_bit_num-1;
-//             let edge_label_head = unit_tail+direction_bit_num+edge_label_bit_num-1;
-//             let start_v_index_head = unit_head - vertex_label_bit_num;
-//             let start_v_label_head = unit_head;
-//             let dir_tail = unit_tail;
-//             let edge_label_tail = unit_tail + direction_bit_num;
+        let bit_per_extend_edge =
+            vertex_label_bit_num + vertex_index_bit_num + edge_label_bit_num + direction_bit_num;
+        let src_code_bit_sum = Encoder::get_src_code_effective_bit_num(&src_code);
+        if src_code_bit_sum % bit_per_extend_edge != vertex_label_bit_num {
+            panic!("The bit num of source code doesn's satisfy the requirement of extend step decode");
+        }
 
-//             let dir = (Encoder::get_decode_value_by_head_tail(&src_code, unit_tail+direction_bit_num-1, unit_tail, 8)) as Direction;
-//             let edge_label = Encoder::get_decode_value_by_head_tail(&src_code, unit_tail+direction_bit_num-1, unit_tail+direction_bit_num, 8);
-//         }
-//         ExtendStep::from((0, vec![]))
-//     }
-// }
+        let mut unit_tail = 0;
+        let mut unit_head = bit_per_extend_edge - 1;
+        let mut extend_edges = Vec::new();
+        while unit_head < src_code_bit_sum {
+            let dir_head = unit_tail + direction_bit_num - 1;
+            let edge_label_head = dir_head + edge_label_bit_num;
+            let start_v_index_head = unit_head - vertex_label_bit_num;
+            let start_v_label_head = unit_head;
+            let dir_tail = unit_tail;
+            let edge_label_tail = unit_tail + direction_bit_num;
+            let start_v_index_tail = edge_label_tail + edge_label_bit_num;
+            let start_v_label_tail = start_v_index_tail + vertex_index_bit_num;
+
+            let dir = if (Encoder::get_decode_value_by_head_tail(&src_code, dir_head, dir_tail, 8)) == 0 {
+                Direction::Out
+            } else {
+                Direction::Incoming
+            };
+            let edge_label =
+                Encoder::get_decode_value_by_head_tail(&src_code, edge_label_head, edge_label_tail, 8);
+            let start_v_index = Encoder::get_decode_value_by_head_tail(
+                &src_code,
+                start_v_index_head,
+                start_v_index_tail,
+                8,
+            );
+            let start_v_label = Encoder::get_decode_value_by_head_tail(
+                &src_code,
+                start_v_label_head,
+                start_v_label_tail,
+                8,
+            );
+
+            extend_edges.push(ExtendEdge::new(start_v_label, start_v_index, edge_label, dir));
+
+            unit_tail += bit_per_extend_edge;
+            unit_head += bit_per_extend_edge;
+        }
+        let target_v_tail = unit_tail;
+        let target_v_head = unit_tail + vertex_label_bit_num - 1;
+        let target_v_label =
+            Encoder::get_decode_value_by_head_tail(&src_code, target_v_head, target_v_tail, 8);
+        ExtendStep::from((target_v_label, extend_edges))
+    }
+}
 
 /// Unit Testing
 #[cfg(test)]
@@ -395,6 +467,14 @@ mod tests {
         Pattern::from(pattern_edges)
     }
 
+    fn build_extend_step_case1() -> ExtendStep {
+        let target_v_label = 3;
+        let extend_edge_1 = ExtendEdge::new(1, 0, 1, Direction::Out);
+        let extend_edge_2 = ExtendEdge::new(1, 1, 1, Direction::Incoming);
+        let extend_edge_3 = ExtendEdge::new(2, 0, 2, Direction::Out);
+        ExtendStep::from((target_v_label, vec![extend_edge_1, extend_edge_2, extend_edge_3]))
+    }
+
     /// ### Generate AsciiString from Vector
     fn generate_asciistring_from_vec(vec: &Vec<u8>) -> AsciiString {
         let mut output = AsciiString::new();
@@ -407,21 +487,21 @@ mod tests {
     #[test]
     fn test_create_encode_unit_from_edge() {
         let pattern = build_pattern_testcase_1();
-        let edge1 = pattern.get_edge_from_id(0);
-        let edge2 = pattern.get_edge_from_id(1);
+        let edge1 = pattern.get_edge_from_id(0).unwrap();
+        let edge2 = pattern.get_edge_from_id(1).unwrap();
         let encoder = Encoder::initialize_from_pattern(&pattern, 5);
         let encode_unit_1 = EncodeUnit::from_pattern_edge(&pattern, edge1, &encoder);
-        assert_eq!(encode_unit_1.values[0], 1);
-        assert_eq!(encode_unit_1.values[1], 1);
+        assert_eq!(encode_unit_1.values[4], 1);
+        assert_eq!(encode_unit_1.values[3], 1);
         assert_eq!(encode_unit_1.values[2], 2);
-        assert_eq!(encode_unit_1.values[3], 0);
-        assert_eq!(encode_unit_1.values[4], 0);
+        assert_eq!(encode_unit_1.values[1], 0);
+        assert_eq!(encode_unit_1.values[0], 0);
         let encode_unit_2 = EncodeUnit::from_pattern_edge(&pattern, edge2, &encoder);
-        assert_eq!(encode_unit_2.values[0], 2);
-        assert_eq!(encode_unit_2.values[1], 1);
+        assert_eq!(encode_unit_2.values[4], 2);
+        assert_eq!(encode_unit_2.values[3], 1);
         assert_eq!(encode_unit_2.values[2], 3);
-        assert_eq!(encode_unit_2.values[3], 0);
-        assert_eq!(encode_unit_2.values[4], 0);
+        assert_eq!(encode_unit_2.values[1], 0);
+        assert_eq!(encode_unit_2.values[0], 0);
     }
 
     #[test]
@@ -467,8 +547,8 @@ mod tests {
     #[test]
     fn encode_unit_to_ascii_string() {
         let pattern = build_pattern_testcase_1();
-        let edge1 = pattern.get_edge_from_id(0);
-        let edge2 = pattern.get_edge_from_id(1);
+        let edge1 = pattern.get_edge_from_id(0).unwrap();
+        let edge2 = pattern.get_edge_from_id(1).unwrap();
         let encoder = Encoder::initialize(2, 2, 2, 2);
         let encode_unit_1 = EncodeUnit::from_pattern_edge(&pattern, edge1, &encoder);
         let encode_string_1 = <EncodeUnit as Encode<AsciiString>>::encode_to(&encode_unit_1, &encoder);
@@ -485,8 +565,8 @@ mod tests {
     #[test]
     fn encode_unit_to_vec_u8() {
         let pattern = build_pattern_testcase_1();
-        let edge1 = pattern.get_edge_from_id(0);
-        let edge2 = pattern.get_edge_from_id(1);
+        let edge1 = pattern.get_edge_from_id(0).unwrap();
+        let edge2 = pattern.get_edge_from_id(1).unwrap();
         let encoder = Encoder::initialize(2, 2, 2, 2);
         let encode_unit_1 = EncodeUnit::from_pattern_edge(&pattern, edge1, &encoder);
         let encode_vec_1 = <EncodeUnit as Encode<Vec<u8>>>::encode_to(&encode_unit_1, &encoder);
@@ -503,23 +583,35 @@ mod tests {
     #[test]
     fn encode_pattern_to_asciistring_case_1() {
         let pattern = build_pattern_testcase_1();
+        let pattern_edge1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
+        let pattern_edge2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
         let encoder = Encoder::initialize(2, 2, 2, 2);
         let encode_value = <Pattern as Encode<AsciiString>>::encode_to(&pattern, &encoder);
-        let expected_encode_string_1: AsciiString = generate_asciistring_from_vec(&vec![2, 96]);
-        let expected_encode_string_2: AsciiString = generate_asciistring_from_vec(&vec![4, 112]);
-        let expected_encode_value = expected_encode_string_1 + &expected_encode_string_2;
+        let mut connect_encode_unit = EncodeUnit::from_pattern_edge(&pattern, &pattern_edge1, &encoder);
+        connect_encode_unit.extend_by_another_unit(&EncodeUnit::from_pattern_edge(
+            &pattern,
+            &pattern_edge2,
+            &encoder,
+        ));
+        let expected_encode_value: AsciiString = connect_encode_unit.encode_to(&encoder);
         assert_eq!(encode_value, expected_encode_value);
     }
 
     #[test]
     fn encode_pattern_to_vec_u8_case_1() {
         let pattern = build_pattern_testcase_1();
+        let pattern_edge1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
+        let pattern_edge2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
         let encoder = Encoder::initialize(2, 2, 2, 2);
-        let encode_vec = <Pattern as Encode<Vec<u8>>>::encode_to(&pattern, &encoder);
-        let mut expected_encode_vec_1: Vec<u8> = vec![1, 96];
-        let expected_encode_vec_2: Vec<u8> = vec![2, 112];
-        expected_encode_vec_1.extend(expected_encode_vec_2);
-        assert_eq!(encode_vec, expected_encode_vec_1);
+        let encode_value = <Pattern as Encode<Vec<u8>>>::encode_to(&pattern, &encoder);
+        let mut connect_encode_unit = EncodeUnit::from_pattern_edge(&pattern, &pattern_edge1, &encoder);
+        connect_encode_unit.extend_by_another_unit(&EncodeUnit::from_pattern_edge(
+            &pattern,
+            &pattern_edge2,
+            &encoder,
+        ));
+        let expected_encode_value: Vec<u8> = connect_encode_unit.encode_to(&encoder);
+        assert_eq!(encode_value, expected_encode_value);
     }
 
     #[test]
@@ -593,8 +685,8 @@ mod tests {
     #[test]
     fn test_decode_from_encode_unit_to_vec_u8() {
         let pattern = build_pattern_testcase_1();
-        let edge1 = pattern.get_edge_from_id(0);
-        let edge2 = pattern.get_edge_from_id(1);
+        let edge1 = pattern.get_edge_from_id(0).unwrap();
+        let edge2 = pattern.get_edge_from_id(1).unwrap();
         let encoder = Encoder::initialize(2, 2, 2, 2);
         let encode_unit_1 = EncodeUnit::from_pattern_edge(&pattern, edge1, &encoder);
         let encode_vec_1 = <EncodeUnit as Encode<Vec<u8>>>::encode_to(&encode_unit_1, &encoder);
@@ -639,8 +731,8 @@ mod tests {
     #[test]
     fn test_decode_from_encode_unit_to_asciistring() {
         let pattern = build_pattern_testcase_1();
-        let edge1 = pattern.get_edge_from_id(0);
-        let edge2 = pattern.get_edge_from_id(1);
+        let edge1 = pattern.get_edge_from_id(0).unwrap();
+        let edge2 = pattern.get_edge_from_id(1).unwrap();
         let encoder = Encoder::initialize(2, 2, 2, 2);
         let encode_unit_1 = EncodeUnit::from_pattern_edge(&pattern, edge1, &encoder);
         let encode_string_1 = <EncodeUnit as Encode<AsciiString>>::encode_to(&encode_unit_1, &encoder);
@@ -687,6 +779,40 @@ mod tests {
         assert_eq!(
             Encoder::get_decode_value_by_head_tail(&encode_vec_2, 1, 0, 7),
             pattern.get_vertex_index(edge2.get_end_vertex_id())
+        );
+    }
+
+    #[test]
+    fn test_encode_decode_extend_step_case1_vec_u8() {
+        let extend_step_1 = build_extend_step_case1();
+        let encoder = Encoder::initialize(2, 2, 2, 2);
+        let extend_step_1_code: Vec<u8> = extend_step_1.encode_to(&encoder);
+        let extend_step_1_from_decode: ExtendStep = Decode::decode_from(extend_step_1_code, &encoder);
+        assert_eq!(extend_step_1.get_target_v_label(), extend_step_1_from_decode.get_target_v_label());
+        assert_eq!(extend_step_1.get_extend_edges_num(), extend_step_1_from_decode.get_extend_edges_num());
+        assert_eq!(
+            extend_step_1
+                .get_extend_edges_by_start_v(1, 0)
+                .unwrap(),
+            extend_step_1_from_decode
+                .get_extend_edges_by_start_v(1, 0)
+                .unwrap()
+        );
+        assert_eq!(
+            extend_step_1
+                .get_extend_edges_by_start_v(1, 1)
+                .unwrap(),
+            extend_step_1_from_decode
+                .get_extend_edges_by_start_v(1, 1)
+                .unwrap()
+        );
+        assert_eq!(
+            extend_step_1
+                .get_extend_edges_by_start_v(2, 0)
+                .unwrap(),
+            extend_step_1_from_decode
+                .get_extend_edges_by_start_v(2, 0)
+                .unwrap()
         );
     }
 }
