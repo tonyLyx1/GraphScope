@@ -18,7 +18,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use fast_math::log2;
 
-use super::codec::PatternEdgeEncodeUnit;
 use super::extend_step::{ExtendEdge, ExtendStep};
 use super::pattern_meta::PatternMeta;
 
@@ -26,16 +25,6 @@ use super::pattern_meta::PatternMeta;
 pub enum Direction {
     Out = 0,
     Incoming,
-}
-
-impl Direction {
-    pub fn to_u8(&self) -> u8 {
-        match *self {
-            Direction::Out => 0,
-            Direction::Incoming => 1,
-            _ => panic!("Error in Converting Direction Enum Type to U8"),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -170,8 +159,8 @@ impl Pattern {
     /// ### [Public] Get the order of both start and end vertices of an edge
     pub fn get_edge_vertices_index(&self, edge_index: i32) -> (i32, i32) {
         let edge = self.get_edge_from_id(edge_index);
-        let start_v_index = self.get_vertex_index(&edge.start_v_id);
-        let end_v_index = self.get_vertex_index(&edge.end_v_id);
+        let start_v_index = self.get_vertex_index(edge.start_v_id);
+        let end_v_index = self.get_vertex_index(edge.end_v_id);
         (start_v_index, end_v_index)
     }
 
@@ -224,7 +213,7 @@ impl Pattern {
 }
 
 /// Methods for Pattern Encoding and Decoding
-/// Include PatternVertex reordering and PatternEdge Reordering
+/// Include PatternVertex Reordering and PatternEdge Reordering
 impl Pattern {
     fn reorder_label_vertices(&mut self, _v_label: i32) {}
 
@@ -375,24 +364,8 @@ impl Pattern {
     }
 
     /// ### Get Vertex Index from Vertex ID Reference
-    fn get_vertex_index(&self, v_id: &i32) -> i32 {
-        self.vertices.get(v_id).unwrap().index
-    }
-
-    pub fn get_edge_encode_unit_by_id(&self, edge_id: i32) -> PatternEdgeEncodeUnit {
-        let edge = self.get_edge_from_id(edge_id);
-        let start_v_label = edge.start_v_label;
-        let end_v_label = edge.end_v_label;
-        let (start_v_index, end_v_index) = self.get_edge_vertices_index(edge_id);
-
-        PatternEdgeEncodeUnit::new(
-            edge.label,
-            start_v_label,
-            end_v_label,
-            Direction::Out,
-            start_v_index,
-            end_v_index,
-        )
+    pub fn get_vertex_index(&self, v_id: i32) -> i32 {
+        self.vertices.get(&v_id).unwrap().index
     }
 }
 
@@ -447,7 +420,7 @@ impl Pattern {
             out_degree: 0,
             in_degree: 0,
         };
-        for ((v_label, v_index), extend_edges) in extend_step.get_extend_edges() {
+        for ((v_label, v_index), extend_edges) in extend_step.iter() {
             // Get all the vertices which can be used to extend with these extend edges
             let vertices_can_use = self.get_equivalent_vertices(*v_label, *v_index);
             // There's no enough vertices to extend, just return None
@@ -519,9 +492,6 @@ impl Pattern {
                         new_pattern
                             .edges
                             .insert(new_pattern_edge.id, new_pattern_edge);
-                    }
-                    _ => {
-                        panic!("Error in extend step: invalid Direction Enum Value");
                     }
                 }
             }
@@ -1019,12 +989,14 @@ mod tests {
         let mut incoming_0_0_0 = 0;
         let mut out_0_0_1 = 0;
         for extend_step in all_extend_steps {
-            let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+            let extend_edges = extend_step
+                .get_extend_edges_by_start_v(0, 0)
+                .unwrap();
             assert_eq!(extend_edges.len(), 1);
             let extend_edge = extend_edges[0];
             assert_eq!(extend_edge.get_start_vertex_label(), 0);
             assert_eq!(extend_edge.get_start_vertex_index(), 0);
-            if extend_step.target_v_label == 0 {
+            if extend_step.get_target_v_label() == 0 {
                 if extend_edge.get_direction() == Direction::Out {
                     out_0_0_0 += 1;
                 }
@@ -1032,7 +1004,7 @@ mod tests {
                     incoming_0_0_0 += 1;
                 }
             }
-            if extend_step.target_v_label == 1 && extend_edge.get_direction() == Direction::Out {
+            if extend_step.get_target_v_label() == 1 && extend_edge.get_direction() == Direction::Out {
                 out_0_0_1 += 1;
             }
         }
@@ -1047,11 +1019,10 @@ mod tests {
         let person_only_pattern = build_modern_pattern_case2();
         let all_extend_steps = person_only_pattern.get_extend_steps(&modern_pattern_meta);
         assert_eq!(all_extend_steps.len(), 1);
-        assert_eq!(all_extend_steps[0].target_v_label, 0);
-        assert_eq!(all_extend_steps[0].extend_edges.len(), 1);
+        assert_eq!(all_extend_steps[0].get_target_v_label(), 0);
+        assert_eq!(all_extend_steps[0].get_diff_start_v_num(), 1);
         let extend_edge = all_extend_steps[0]
-            .extend_edges
-            .get(&(1, 0))
+            .get_extend_edges_by_start_v(1, 0)
             .unwrap()[0];
         assert_eq!(extend_edge.get_start_vertex_label(), 1);
         assert_eq!(extend_edge.get_start_vertex_index(), 0);
@@ -1079,11 +1050,13 @@ mod tests {
         let mut incoming_0_0_0_incoming_0_1_0_count = 0;
         let mut out_0_0_1_out_0_1_1_count = 0;
         for extend_step in all_extend_steps {
-            if extend_step.target_v_label == 0 {
+            if extend_step.get_target_v_label() == 0 {
                 extend_steps_with_label_0_count += 1;
-                if extend_step.extend_edges.len() == 1 {
-                    if extend_step.extend_edges.contains_key(&(0, 0)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                if extend_step.get_diff_start_v_num() == 1 {
+                    if extend_step.has_extend_from_start_v(0, 0) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 0)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
@@ -1108,8 +1081,10 @@ mod tests {
                                 out_0_1_1_count += 1;
                             }
                         }
-                    } else if extend_step.extend_edges.contains_key(&(0, 1)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
+                    } else if extend_step.has_extend_from_start_v(0, 1) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 1)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 1);
@@ -1135,13 +1110,15 @@ mod tests {
                             }
                         }
                     }
-                } else if extend_step.extend_edges.len() == 2 {
+                } else if extend_step.get_diff_start_v_num() == 2 {
                     let mut found_out_0_0_0 = false;
                     let mut found_incoming_0_0_0 = false;
                     let mut found_out_0_1_0 = false;
                     let mut found_incoming_0_1_0 = false;
-                    if extend_step.extend_edges.contains_key(&(0, 0)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                    if extend_step.has_extend_from_start_v(0, 0) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 0)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
@@ -1156,8 +1133,10 @@ mod tests {
                             }
                         }
                     }
-                    if extend_step.extend_edges.contains_key(&(0, 1)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
+                    if extend_step.has_extend_from_start_v(0, 1) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 1)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 1);
@@ -1182,11 +1161,13 @@ mod tests {
                         incoming_0_0_0_incoming_0_1_0_count += 1;
                     }
                 }
-            } else if extend_step.target_v_label == 1 {
+            } else if extend_step.get_target_v_label() == 1 {
                 extend_steps_with_label_1_count += 1;
-                if extend_step.extend_edges.len() == 1 {
-                    if extend_step.extend_edges.contains_key(&(0, 0)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                if extend_step.get_diff_start_v_num() == 1 {
+                    if extend_step.has_extend_from_start_v(0, 0) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 0)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
@@ -1206,8 +1187,10 @@ mod tests {
                                 incoming_0_0_0_count += 1
                             }
                         }
-                    } else if extend_step.extend_edges.contains_key(&(0, 1)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
+                    } else if extend_step.has_extend_from_start_v(0, 1) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 1)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 1);
@@ -1228,11 +1211,13 @@ mod tests {
                             }
                         }
                     }
-                } else if extend_step.extend_edges.len() == 2 {
+                } else if extend_step.get_diff_start_v_num() == 2 {
                     let mut found_out_0_0_1 = false;
                     let mut found_out_0_1_1 = false;
-                    if extend_step.extend_edges.contains_key(&(0, 0)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                    if extend_step.has_extend_from_start_v(0, 0) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 0)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
@@ -1243,8 +1228,10 @@ mod tests {
                             }
                         }
                     }
-                    if extend_step.extend_edges.contains_key(&(0, 1)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 1)).unwrap();
+                    if extend_step.has_extend_from_start_v(0, 1) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 1)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 1);
@@ -1290,11 +1277,13 @@ mod tests {
         let mut out_0_0_0_incoming_1_0_1_count = 0;
         let mut incoming_0_0_0_incoming_1_0_1_count = 0;
         for extend_step in all_extend_steps {
-            if extend_step.target_v_label == 0 {
+            if extend_step.get_target_v_label() == 0 {
                 extend_steps_with_label_0_count += 1;
-                if extend_step.extend_edges.len() == 1 {
-                    if extend_step.extend_edges.contains_key(&(0, 0)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                if extend_step.get_diff_start_v_num() == 1 {
+                    if extend_step.has_extend_from_start_v(0, 0) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 0)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
@@ -1314,8 +1303,10 @@ mod tests {
                                 incoming_1_0_1_count += 1;
                             }
                         }
-                    } else if extend_step.extend_edges.contains_key(&(1, 0)) {
-                        let extend_edges = extend_step.extend_edges.get(&(1, 0)).unwrap();
+                    } else if extend_step.has_extend_from_start_v(1, 0) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(1, 0)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 1);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
@@ -1336,12 +1327,14 @@ mod tests {
                             }
                         }
                     }
-                } else if extend_step.extend_edges.len() == 2 {
+                } else if extend_step.get_diff_start_v_num() == 2 {
                     let mut found_out_0_0_0 = false;
                     let mut found_incoming_1_0_1 = false;
                     let mut found_incoming_0_0_0 = false;
-                    if extend_step.extend_edges.contains_key(&(0, 0)) {
-                        let extend_edges = extend_step.extend_edges.get(&(0, 0)).unwrap();
+                    if extend_step.has_extend_from_start_v(0, 0) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(0, 0)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
@@ -1356,8 +1349,10 @@ mod tests {
                             }
                         }
                     }
-                    if extend_step.extend_edges.contains_key(&(1, 0)) {
-                        let extend_edges = extend_step.extend_edges.get(&(1, 0)).unwrap();
+                    if extend_step.has_extend_from_start_v(1, 0) {
+                        let extend_edges = extend_step
+                            .get_extend_edges_by_start_v(1, 0)
+                            .unwrap();
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 1);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
@@ -1374,7 +1369,7 @@ mod tests {
                         incoming_0_0_0_incoming_1_0_1_count += 1;
                     }
                 }
-            } else if extend_step.target_v_label == 1 {
+            } else if extend_step.get_target_v_label() == 1 {
                 extend_steps_with_label_1_count += 1;
             }
         }
