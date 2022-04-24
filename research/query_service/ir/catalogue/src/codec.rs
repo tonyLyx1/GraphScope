@@ -105,7 +105,7 @@ impl Encoder {
     }
 
     pub fn get_decode_value_by_head_tail(
-        src_code: &Vec<u8>, head: u8, tail: u8, storage_unit_bit_num: u8,
+        src_code: &Vec<u8>, head: usize, tail: usize, storage_unit_bit_num: usize,
     ) -> i32 {
         if head < tail {
             panic!("The head must be at least larger or equal to tail");
@@ -129,10 +129,10 @@ impl Encoder {
             output = (src_code[tail_index] as i32) >> tail_offset;
             for i in 1..index_diff {
                 output += (src_code[tail_index - i] as i32)
-                    << (storage_unit_bit_num - tail_offset + ((i - 1) as u8) * storage_unit_bit_num);
+                    << (storage_unit_bit_num - tail_offset + (i - 1) * storage_unit_bit_num);
             }
             output += ((src_code[head_index] << (8 - 1 - head_offset) >> (8 - 1 - head_offset)) as i32)
-                << (storage_unit_bit_num - tail_offset + ((index_diff - 1) as u8) * storage_unit_bit_num);
+                << (storage_unit_bit_num - tail_offset + (index_diff - 1) * storage_unit_bit_num);
         }
         output
     }
@@ -341,6 +341,33 @@ impl Encode<AsciiString> for ExtendStep {
         encode_str
     }
 }
+
+// impl Decode<Vec<u8>> for ExtendStep {
+//     fn decode_from(src_code: Vec<u8>, encoder: &Encoder) -> Self {
+//         let vertex_label_bit_num = encoder.get_vertex_label_bit_num();
+//         let vertex_index_bit_num = encoder.get_vertex_index_bit_num();
+//         let edge_label_bit_num = encoder.get_edge_label_bit_num();
+//         let direction_bit_num = encoder.get_direction_bit_num();
+
+//         let bit_per_extend_edge = vertex_label_bit_num + vertex_index_bit_num + edge_label_bit_num + direction_bit_num;
+//         let src_code_bit_sum = 8 * src_code.len();
+//         let mut unit_tail = 0;
+//         let mut unit_head = bit_per_extend_edge - 1;
+//         let mut extend_edges = Vec::new();
+//         while unit_head < src_code_bit_sum {
+//             let dir_head = unit_tail+direction_bit_num-1;
+//             let edge_label_head = unit_tail+direction_bit_num+edge_label_bit_num-1;
+//             let start_v_index_head = unit_head - vertex_label_bit_num;
+//             let start_v_label_head = unit_head;
+//             let dir_tail = unit_tail;
+//             let edge_label_tail = unit_tail + direction_bit_num;
+
+//             let dir = (Encoder::get_decode_value_by_head_tail(&src_code, unit_tail+direction_bit_num-1, unit_tail, 8)) as Direction;
+//             let edge_label = Encoder::get_decode_value_by_head_tail(&src_code, unit_tail+direction_bit_num-1, unit_tail+direction_bit_num, 8);
+//         }
+//         ExtendStep::from((0, vec![]))
+//     }
+// }
 
 /// Unit Testing
 #[cfg(test)]
