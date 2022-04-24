@@ -181,8 +181,8 @@ impl Pattern {
 
     /// ### Compute at least how many bits are needed to represent edge labels
     /// At least 1 bit
-    pub fn get_min_edge_label_bit_num(&self) -> u8 {
-        max(1, log2(self.get_edge_num() as f32).ceil() as u8)
+    pub fn get_min_edge_label_bit_num(&self) -> usize {
+        max(1, log2(self.get_edge_num() as f32).ceil() as usize)
     }
 
     /// ### Get the total number of vertex labels in the pattern
@@ -192,18 +192,18 @@ impl Pattern {
 
     /// ### Compute at least how many bits are needed to represent vertex labels
     /// At least 1 bit
-    pub fn get_min_vertex_label_bit_num(&self) -> u8 {
-        max(1, log2(self.get_vertex_num() as f32).ceil() as u8)
+    pub fn get_min_vertex_label_bit_num(&self) -> usize {
+        max(1, log2(self.get_vertex_num() as f32).ceil() as usize)
     }
 
     /// ### Compute at least how many bits are needed to represent vertices with the same label
     /// At least 1 bit
-    pub fn get_min_vertex_index_bit_num(&self) -> u8 {
+    pub fn get_min_vertex_index_bit_num(&self) -> usize {
         // iterate through the hashmap and compute how many vertices have the same label in one set
-        let mut min_index_bit_num: u8 = 1;
+        let mut min_index_bit_num: usize = 1;
         for (_, value) in self.vertex_label_map.iter() {
             let same_label_vertex_num = value.len() as u64;
-            let index_bit_num: u8 = log2(same_label_vertex_num as f32).ceil() as u8;
+            let index_bit_num: usize = log2(same_label_vertex_num as f32).ceil() as usize;
             if index_bit_num > min_index_bit_num {
                 min_index_bit_num = index_bit_num;
             }
