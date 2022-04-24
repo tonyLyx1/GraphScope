@@ -34,17 +34,17 @@ pub trait Decode<T>: Encode<T> {
 /// Contains the bit number that each variable in the encoding unit occupies
 #[derive(Debug, Clone)]
 pub struct Encoder {
-    edge_label_bit_num: u8,
-    vertex_label_bit_num: u8,
-    direction_bit_num: u8,
-    vertex_index_bit_num: u8,
+    edge_label_bit_num: usize,
+    vertex_label_bit_num: usize,
+    direction_bit_num: usize,
+    vertex_index_bit_num: usize,
 }
 
 impl Encoder {
     /// ### Initialize Encoder with User Definded Parameters
     pub fn initialize(
-        edge_label_bit_num: u8, vertex_label_bit_num: u8, edge_direction_bit_num: u8,
-        vertex_index_bit_num: u8,
+        edge_label_bit_num: usize, vertex_label_bit_num: usize, edge_direction_bit_num: usize,
+        vertex_index_bit_num: usize,
     ) -> Encoder {
         Encoder {
             edge_label_bit_num,
@@ -56,7 +56,7 @@ impl Encoder {
 
     /// ### Initialize the Encoder by Analyzing a Pattern
     /// The vertex_index_bit_num can be a user defined value if it is applicable to the pattern
-    pub fn initialize_from_pattern(pattern: &Pattern, vertex_index_bit_num: u8) -> Encoder {
+    pub fn initialize_from_pattern(pattern: &Pattern, vertex_index_bit_num: usize) -> Encoder {
         let min_edge_label_bit_num = pattern.get_min_edge_label_bit_num();
         let min_vertex_label_bit_num = pattern.get_min_vertex_label_bit_num();
         let mut min_vertex_index_bit_num = pattern.get_min_vertex_index_bit_num();
@@ -76,7 +76,7 @@ impl Encoder {
 
     /// ### Compute the u8 value for each storage unit (AsciiChar or u8)
     pub fn get_encode_numerical_value(
-        value: i32, value_head: u8, value_tail: u8, storage_unit_valid_bit_num: u8, storage_unit_index: u8,
+        value: i32, value_head: usize, value_tail: usize, storage_unit_valid_bit_num: usize, storage_unit_index: usize,
     ) -> u8 {
         let mut output: i32;
         let char_tail = storage_unit_index * storage_unit_valid_bit_num;
@@ -140,27 +140,27 @@ impl Encoder {
 
 /// Getters
 impl Encoder {
-    pub fn get_edge_label_bit_num(&self) -> u8 {
+    pub fn get_edge_label_bit_num(&self) -> usize {
         self.edge_label_bit_num
     }
 
-    pub fn get_vertex_label_bit_num(&self) -> u8 {
+    pub fn get_vertex_label_bit_num(&self) -> usize {
         self.vertex_label_bit_num
     }
 
-    pub fn get_direction_bit_num(&self) -> u8 {
+    pub fn get_direction_bit_num(&self) -> usize {
         self.direction_bit_num
     }
 
-    pub fn get_vertex_index_bit_num(&self) -> u8 {
+    pub fn get_vertex_index_bit_num(&self) -> usize {
         self.vertex_index_bit_num
     }
 }
 
 pub struct EncodeUnit {
     values: Vec<i32>,
-    heads: Vec<u8>,
-    tails: Vec<u8>,
+    heads: Vec<usize>,
+    tails: Vec<usize>,
 }
 
 impl EncodeUnit {
@@ -220,7 +220,7 @@ impl EncodeUnit {
         EncodeUnit { values, heads, tails }
     }
 
-    pub fn to_vec_u8(&self, storage_unit_bit_num: u8) -> Vec<u8> {
+    pub fn to_vec_u8(&self, storage_unit_bit_num: usize) -> Vec<u8> {
         let storage_unit_num = self.heads[0] / storage_unit_bit_num + 1;
         let mut encode_vec = Vec::with_capacity(storage_unit_num as usize);
         for i in (0..storage_unit_num).rev() {
@@ -237,7 +237,7 @@ impl EncodeUnit {
         encode_vec
     }
 
-    pub fn get_bits_num(&self) -> u8 {
+    pub fn get_bits_num(&self) -> usize {
         self.heads[0] + 1
     }
 }
@@ -374,7 +374,6 @@ mod tests {
         for value in vec {
             output.push(value.to_ascii_char().unwrap());
         }
-
         output
     }
 
