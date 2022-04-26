@@ -149,14 +149,24 @@ pub struct Pattern {
 
 /// Public Functions of Pattern
 impl Pattern {
-    /// ### Get Edges References
+    /// ### Get Edges Reference
     pub fn get_edges(&self) -> &BTreeMap<i32, PatternEdge> {
         &self.edges
     }
 
-    /// ### Get Vertices References
+    /// ### Get Vertices Reference
     pub fn get_vertices(&self) -> &BTreeMap<i32, PatternVertex> {
         &self.vertices
+    }
+
+    /// ### Get Edge Label Map Reference
+    pub fn get_edge_label_map(&self) -> &HashMap<i32, BTreeSet<i32>> {
+        &self.edge_label_map
+    }
+
+    /// ### Get Vertex Label Map Reference
+    pub fn get_vertex_label_map(&self) -> &HashMap<i32, BTreeSet<i32>> {
+        &self.vertex_label_map
     }
 
     /// ### Get PatternEdge Reference from Edge ID
@@ -360,6 +370,10 @@ impl Pattern {
         Ordering::Equal
     }
 
+    /// ### Compare two edges by id
+    /// Considers only the edge label, start/end vertex label
+    /// 
+    /// Vertex Infices are not considered
     fn cmp_edges_without_index(&self, e1_id: i32, e2_id: i32) -> Ordering {
         if e1_id == e2_id {
             return Ordering::Equal;
@@ -388,7 +402,8 @@ impl Pattern {
         Ordering::Equal
     }
 
-    /// Get the Order of two PatternEdges in a Pattern
+    /// ### Get the Order of two PatternEdges in a Pattern
+    /// Vertex Indices are taken into consideration
     fn cmp_edges(&self, e1_id: i32, e2_id: i32) -> Ordering {
         if e1_id == e2_id {
             return Ordering::Equal;
@@ -441,15 +456,16 @@ impl Pattern {
     pub fn set_initial_index(&mut self) {
         for (_, vertex_set) in self.vertex_label_map.iter() {
             let mut vertex_vec = Vec::with_capacity(vertex_set.len());
-            let mut vertex_set_iter = vertex_set.iter();
-            loop {
-                match vertex_set_iter.next() {
-                    Some(v_id) => vertex_vec.push(*v_id),
-                    None => break,
-                }
+            for v_id in vertex_set.iter() {
+                vertex_vec.push(*v_id);
             }
+            // Sort vertices from small to large
             vertex_vec.sort_by(|v1_id, v2_id| self.cmp_vertices(*v1_id, *v2_id));
+            // Vertex Index is the value to be set to vertices.
+            // Isomorphic Vertices may share the same vertex index
             let mut vertex_index = 0;
+            // Vertex Index Implicit is to make sure that vertices sharing the same vertex index still occupy a place
+            // eg: 0, 0, 2, 2, 2, 5
             let mut vertex_index_implicit = 0;
             let mut current_max_v_id = vertex_vec[0];
             for v_id in vertex_vec.iter() {
@@ -476,8 +492,43 @@ impl Pattern {
     /// ### Step-2: Set Accurate Indices
     /// Set Accurate Indices According to the Initial Indices Set in Step-1
     pub fn set_accurate_index(&mut self) {
-        
+        // Initializde the visited Hashmap for all the vertices
+        let mut visited_map: HashMap<i32, bool> = HashMap::new();
+        for (v_id, _) in self.get_vertices().iter() {
+            visited_map.insert(*v_id, false);
+        }
+        // Iteratively find a group of vertices sharing the same index
+        let mut vertex_vec: Vec<i32> = Vec::new();
+        let same_index_vertex_group: &mut Vec<Vec<i32>> = vec![];
+        for (v_label, vertex_set) in self.get_vertex_label_map().iter() {
+            // Push all the vertices with the same label into a vector
+            for v_id in vertex_set.iter() {
+                vertex_vec.push(*v_id);
+            }
+            // Sort vertices by their indices
+            vertex_vec.sort_by(|v1_id, v2_id| self.get_vertex_from_id(*v1_id).get_index().cmp(&self.get_vertex_from_id(*v2_id).get_index()));
+            let mut max_v_index = -1;
+            for i in 0..vertex_vec.len() {
+                let current_v_index = self.get_vertex_from_id(vertex_vec[i]).get_index();
+                match current_v_index.cmp(&max_v_index) {
+                    Ordering::Greater => {
+                        same_index_vertex_group.push(vec![vertex_vec[i]]);
+                        max_v_index = current_v_index;
+                    },
+                    Ordering::Equal => same_index_vertex_group.last_mut().unwrap().push(vertex_vec[i]),
+                    Ordering::Less => panic!("Error in setting accurate index: vertex_vec is not well sorted"),
+                }
+            }
+        }
+        // Setting Accurate Indices to these groups of vertices
+        for i in 0..same_index_vertex_group.len() {
+            // self.set_accurate_index_for_vertex_group(&same_index_vertex_group[i], &mut visited_map);
+        }
     }
+
+    // pub fn set_accurate_index_for_vertex_group(&self, vertex_group: &Vec<i32>, visited_map: &mut HashMap<i32, bool>) {
+
+    // }
 
     /// Get a vector of ordered edges's indexes of a Pattern
     /// The comparison is based on the `cmp_edges` method above to get the Order
