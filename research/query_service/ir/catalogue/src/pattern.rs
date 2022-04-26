@@ -14,7 +14,7 @@
 //! limitations under the License.
 
 use std::cmp::{max, Ordering};
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use fast_math::log2;
 
@@ -120,18 +120,12 @@ impl PatternEdge {
         self.end_v_label
     }
 }
-
-/// Pattern的全部信息，包含所有的点，边信息
-///
-/// edge_label_map: 拥有相同label的边的id集合
-///
-/// vertex_label_map: 拥有相同label的点的id集合
 #[derive(Debug, Clone)]
 pub struct Pattern {
     edges: BTreeMap<i32, PatternEdge>,
     vertices: BTreeMap<i32, PatternVertex>,
-    edge_label_map: HashMap<i32, BTreeSet<i32>>,
-    vertex_label_map: HashMap<i32, BTreeSet<i32>>,
+    edge_label_map: BTreeMap<i32, BTreeSet<i32>>,
+    vertex_label_map: BTreeMap<i32, BTreeSet<i32>>,
 }
 
 /// Public Functions of Pattern
@@ -182,21 +176,43 @@ impl Pattern {
         self.edge_label_map.len()
     }
 
-    /// ### Compute at least how many bits are needed to represent edge labels
-    /// At least 1 bit
-    pub fn get_min_edge_label_bit_num(&self) -> usize {
-        max(1, log2(self.get_edge_num() as f32).ceil() as usize)
-    }
-
     /// ### Get the total number of vertex labels in the pattern
     pub fn get_vertex_label_num(&self) -> usize {
         self.vertex_label_map.len()
     }
 
+    pub fn get_max_edge_label(&self) -> Option<i32> {
+        match self.edge_label_map.iter().last() {
+            Some((max_label, _)) => Some(*max_label),
+            None => None,
+        }
+    }
+
+    pub fn get_max_vertex_label(&self) -> Option<i32> {
+        match self.vertex_label_map.iter().last() {
+            Some((max_label, _)) => Some(*max_label),
+            None => None,
+        }
+    }
+
+    /// ### Compute at least how many bits are needed to represent edge labels
+    /// At least 1 bit
+    pub fn get_min_edge_label_bit_num(&self) -> usize {
+        if let Some(max_edge_label) = self.get_max_edge_label() {
+            max(1, log2((max_edge_label + 1) as f32).ceil() as usize)
+        } else {
+            1
+        }
+    }
+
     /// ### Compute at least how many bits are needed to represent vertex labels
     /// At least 1 bit
     pub fn get_min_vertex_label_bit_num(&self) -> usize {
-        max(1, log2(self.get_vertex_num() as f32).ceil() as usize)
+        if let Some(max_vertex_label) = self.get_max_vertex_label() {
+            max(1, log2((max_vertex_label + 1) as f32).ceil() as usize)
+        } else {
+            1
+        }
     }
 
     /// ### Compute at least how many bits are needed to represent vertices with the same label
@@ -333,6 +349,12 @@ impl Pattern {
 
 /// Index Ranking
 impl Pattern {
+    pub fn set_vertex_index(&mut self, id: i32, index: i32) {
+        if let Some(vertex) = self.vertices.get_mut(&id) {
+            vertex.index = index
+        }
+    }
+
     /// ### Set Initial Vertex Index Based on Comparison of Labels and In/Out Degrees
     pub fn set_initial_index(&mut self) {
         for (_, vertex_set) in self.vertex_label_map.iter() {
@@ -585,8 +607,8 @@ impl From<PatternVertex> for Pattern {
         Pattern {
             edges: BTreeMap::new(),
             vertices: BTreeMap::from([(vertex.id, vertex.clone())]),
-            edge_label_map: HashMap::new(),
-            vertex_label_map: HashMap::from([(vertex.label, BTreeSet::from([vertex.id]))]),
+            edge_label_map: BTreeMap::new(),
+            vertex_label_map: BTreeMap::from([(vertex.label, BTreeSet::from([vertex.id]))]),
         }
     }
 }
@@ -603,8 +625,8 @@ impl From<Vec<PatternEdge>> for Pattern {
         let mut new_pattern = Pattern {
             edges: BTreeMap::new(),
             vertices: BTreeMap::new(),
-            edge_label_map: HashMap::new(),
-            vertex_label_map: HashMap::new(),
+            edge_label_map: BTreeMap::new(),
+            vertex_label_map: BTreeMap::new(),
         };
         for edge in edges {
             // Add the new Pattern Edge to the new Pattern
