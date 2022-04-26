@@ -15,11 +15,11 @@
 
 use std::collections::BTreeSet;
 
-use ascii::{ToAsciiChar, AsciiString};
+use ascii::{AsciiString, ToAsciiChar};
 
-use super::pattern::Pattern;
-use crate::extend_step::{ExtendEdge, ExtendStep};
-use crate::pattern::PatternEdge;
+use super::extend_step::{ExtendEdge, ExtendStep};
+use super::pattern::{Pattern, PatternEdge};
+
 pub trait Encode<T> {
     fn encode_to(&self, encoder: &Encoder) -> T;
 }
@@ -75,7 +75,8 @@ impl Encoder {
 
     /// ### Compute the u8 value for each storage unit (AsciiChar or u8)
     pub fn get_encode_numerical_value(
-        value: i32, value_head: usize, value_tail: usize, storage_unit_valid_bit_num: usize, storage_unit_index: usize,
+        value: i32, value_head: usize, value_tail: usize, storage_unit_valid_bit_num: usize,
+        storage_unit_index: usize,
     ) -> u8 {
         let mut output: i32;
         let char_tail = storage_unit_index * storage_unit_valid_bit_num;
