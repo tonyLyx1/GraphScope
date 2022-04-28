@@ -93,7 +93,7 @@ impl PatternMeta {
                         if *start_v_id == src_v_id && *dir == Direction::Out {
                             connect_vertices.insert(*end_v_id);
                         }
-                        if *end_v_id == src_v_id && *dir == Direction::Incoming {
+                        if *end_v_id == src_v_id && *dir == Direction::In {
                             connect_vertices.insert(*start_v_id);
                         }
                     }
@@ -163,7 +163,7 @@ impl From<Schema> for PatternMeta {
                             .vertex_connect_edges
                             .entry(end_v_id)
                             .or_insert(BTreeSet::new())
-                            .insert((*id, Direction::Incoming));
+                            .insert((*id, Direction::In));
                         pattern_meta
                             .edge_connect_vertices
                             .entry(*id)
@@ -178,7 +178,7 @@ impl From<Schema> for PatternMeta {
                             .vertex_vertex_edges
                             .entry((end_v_id, start_v_id))
                             .or_insert(Vec::new())
-                            .push((*id, Direction::Incoming));
+                            .push((*id, Direction::In));
                     }
                 }
                 None => {
@@ -310,7 +310,7 @@ mod tests {
                 vertex_vertex_edges
                     .entry((end_v_id, start_v_id))
                     .or_insert(Vec::new())
-                    .push((edge_id, Direction::Incoming));
+                    .push((edge_id, Direction::In));
             }
         }
         for ((start_v_id, end_v_id), mut connections) in vertex_vertex_edges {
@@ -336,11 +336,11 @@ mod tests {
                             .or_insert(Vec::new())
                             .push((edge_id, Direction::Out));
                     }
-                    if end_v_id == vertex_id && dir == Direction::Incoming {
+                    if end_v_id == vertex_id && dir == Direction::In {
                         vertex_vertex_edges
                             .entry((end_v_id, start_v_id))
                             .or_insert(Vec::new())
-                            .push((edge_id, Direction::Incoming));
+                            .push((edge_id, Direction::In));
                     }
                 }
             }
