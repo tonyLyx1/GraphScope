@@ -17,15 +17,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use ir_core::plan::meta::Schema;
 
-use crate::Direction;
+use crate::{LabelID, Direction};
 
 #[derive(Debug)]
 pub struct PatternMeta {
-    vertex_map: BTreeMap<String, i32>,
-    edge_map: BTreeMap<String, i32>,
-    vertex_connect_edges: BTreeMap<i32, BTreeSet<(i32, Direction)>>,
-    edge_connect_vertices: BTreeMap<i32, Vec<(i32, i32)>>,
-    vertex_vertex_edges: BTreeMap<(i32, i32), Vec<(i32, Direction)>>,
+    vertex_map: BTreeMap<String, LabelID>,
+    edge_map: BTreeMap<String, LabelID>,
+    vertex_connect_edges: BTreeMap<i32, BTreeSet<(LabelID, Direction)>>,
+    edge_connect_vertices: BTreeMap<LabelID, Vec<(LabelID, LabelID)>>,
+    vertex_vertex_edges: BTreeMap<(LabelID, LabelID), Vec<(LabelID, Direction)>>,
 }
 
 impl PatternMeta {
@@ -53,7 +53,7 @@ impl PatternMeta {
         all_edge_names
     }
 
-    pub fn get_all_vertex_ids(&self) -> Vec<i32> {
+    pub fn get_all_vertex_ids(&self) -> Vec<LabelID> {
         let mut all_vertex_ids = Vec::with_capacity(self.vertex_map.len());
         for (_, vertex_id) in &self.vertex_map {
             all_vertex_ids.push(*vertex_id);
@@ -61,7 +61,7 @@ impl PatternMeta {
         all_vertex_ids
     }
 
-    pub fn get_all_edge_ids(&self) -> Vec<i32> {
+    pub fn get_all_edge_ids(&self) -> Vec<LabelID> {
         let mut all_edge_ids = Vec::with_capacity(self.edge_map.len());
         for (_, edge_id) in &self.edge_map {
             all_edge_ids.push(*edge_id);
@@ -69,21 +69,21 @@ impl PatternMeta {
         all_edge_ids
     }
 
-    pub fn get_vertex_id(&self, label_name: &str) -> Option<i32> {
+    pub fn get_vertex_id(&self, label_name: &str) -> Option<LabelID> {
         match self.vertex_map.get(label_name) {
             Some(id) => Some(*id),
             None => None,
         }
     }
 
-    pub fn get_edge_id(&self, label_name: &str) -> Option<i32> {
+    pub fn get_edge_id(&self, label_name: &str) -> Option<LabelID> {
         match self.edge_map.get(label_name) {
             Some(id) => Some(*id),
             None => None,
         }
     }
 
-    pub fn get_connect_vertices_of_v(&self, src_v_id: i32) -> BTreeSet<i32> {
+    pub fn get_connect_vertices_of_v(&self, src_v_id: LabelID) -> BTreeSet<LabelID> {
         match self.vertex_connect_edges.get(&src_v_id) {
             Some(connections) => {
                 let mut connect_vertices = BTreeSet::new();
@@ -104,7 +104,7 @@ impl PatternMeta {
         }
     }
 
-    pub fn get_connect_edges_of_v(&self, src_v_id: i32) -> Vec<(i32, Direction)> {
+    pub fn get_connect_edges_of_v(&self, src_v_id: LabelID) -> Vec<(LabelID, Direction)> {
         match self.vertex_connect_edges.get(&src_v_id) {
             Some(connections) => {
                 let mut connections_vec = Vec::new();
@@ -117,14 +117,14 @@ impl PatternMeta {
         }
     }
 
-    pub fn get_connect_vertices_of_e(&self, src_e_id: i32) -> Vec<(i32, i32)> {
+    pub fn get_connect_vertices_of_e(&self, src_e_id: LabelID) -> Vec<(LabelID, LabelID)> {
         match self.edge_connect_vertices.get(&src_e_id) {
             Some(connections) => connections.clone(),
             None => Vec::new(),
         }
     }
 
-    pub fn get_edges_between_vertices(&self, src_v_id: i32, dst_v_id: i32) -> Vec<(i32, Direction)> {
+    pub fn get_edges_between_vertices(&self, src_v_id: LabelID, dst_v_id: LabelID) -> Vec<(LabelID, Direction)> {
         match self
             .vertex_vertex_edges
             .get(&(src_v_id, dst_v_id))

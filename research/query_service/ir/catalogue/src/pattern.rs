@@ -20,29 +20,29 @@ use fast_math::log2;
 
 use crate::extend_step::{ExtendEdge, ExtendStep};
 use crate::pattern_meta::PatternMeta;
-use crate::Direction;
+use crate::{ID, LabelID, Index, Direction};
 
 #[derive(Debug, Clone)]
 pub struct PatternVertex {
-    id: i32,
-    label: i32,
-    index: i32,
-    connect_edges: BTreeMap<i32, (i32, Direction)>,
-    connect_vertices: BTreeMap<i32, Vec<(i32, Direction)>>,
+    id: ID,
+    label: LabelID,
+    index: Index,
+    connect_edges: BTreeMap<ID, (ID, Direction)>,
+    connect_vertices: BTreeMap<ID, Vec<(ID, Direction)>>,
     out_degree: usize,
     in_degree: usize,
 }
 
 impl PatternVertex {
-    pub fn get_id(&self) -> i32 {
+    pub fn get_id(&self) -> ID {
         self.id
     }
 
-    pub fn get_label(&self) -> i32 {
+    pub fn get_label(&self) -> LabelID {
         self.label
     }
 
-    pub fn get_index(&self) -> i32 {
+    pub fn get_index(&self) -> Index {
         self.index
     }
 
@@ -58,11 +58,11 @@ impl PatternVertex {
         self.connect_edges.len()
     }
 
-    pub fn get_connect_vertex_by_edge_id(&self, edge_id: i32) -> Option<(i32, Direction)> {
+    pub fn get_connect_vertex_by_edge_id(&self, edge_id: ID) -> Option<(ID, Direction)> {
         self.connect_edges.get(&edge_id).cloned()
     }
 
-    pub fn get_connect_edges_by_vertex_id(&self, vertex_id: i32) -> Vec<(i32, Direction)> {
+    pub fn get_connect_edges_by_vertex_id(&self, vertex_id: ID) -> Vec<(ID, Direction)> {
         match self.connect_vertices.get(&vertex_id) {
             Some(connect_edges) => connect_edges.clone(),
             None => Vec::new(),
@@ -72,79 +72,79 @@ impl PatternVertex {
 
 #[derive(Debug, Clone, Copy)]
 pub struct PatternEdge {
-    id: i32,
-    label: i32,
-    start_v_id: i32,
-    end_v_id: i32,
-    start_v_label: i32,
-    end_v_label: i32,
+    id: ID,
+    label: LabelID,
+    start_v_id: ID,
+    end_v_id: ID,
+    start_v_label: LabelID,
+    end_v_label: LabelID,
 }
 
 /// Methods to access the fields of a PatternEdge
 impl PatternEdge {
     pub fn new(
-        id: i32, label: i32, start_v_id: i32, end_v_id: i32, start_v_label: i32, end_v_label: i32,
+        id: ID, label: LabelID, start_v_id: ID, end_v_id: ID, start_v_label: LabelID, end_v_label: LabelID,
     ) -> PatternEdge {
         PatternEdge { id, label, start_v_id, end_v_id, start_v_label, end_v_label }
     }
 
-    pub fn get_id(&self) -> i32 {
+    pub fn get_id(&self) -> ID {
         self.id
     }
 
-    pub fn get_label(&self) -> i32 {
+    pub fn get_label(&self) -> LabelID {
         self.label
     }
 
-    pub fn get_start_vertex_id(&self) -> i32 {
+    pub fn get_start_vertex_id(&self) -> ID {
         self.start_v_id
     }
 
-    pub fn get_end_vertex_id(&self) -> i32 {
+    pub fn get_end_vertex_id(&self) -> ID {
         self.end_v_id
     }
 
-    pub fn get_start_vertex_label(&self) -> i32 {
+    pub fn get_start_vertex_label(&self) -> LabelID {
         self.start_v_label
     }
 
-    pub fn get_end_vertex_label(&self) -> i32 {
+    pub fn get_end_vertex_label(&self) -> LabelID {
         self.end_v_label
     }
 }
 #[derive(Debug, Clone)]
 pub struct Pattern {
-    edges: BTreeMap<i32, PatternEdge>,
-    vertices: BTreeMap<i32, PatternVertex>,
-    edge_label_map: BTreeMap<i32, BTreeSet<i32>>,
-    vertex_label_map: BTreeMap<i32, BTreeSet<i32>>,
+    edges: BTreeMap<ID, PatternEdge>,
+    vertices: BTreeMap<ID, PatternVertex>,
+    edge_label_map: BTreeMap<LabelID, BTreeSet<ID>>,
+    vertex_label_map: BTreeMap<LabelID, BTreeSet<ID>>,
 }
 
 /// Public Functions of Pattern
 impl Pattern {
     /// ### Get Edges References
-    pub fn get_edges(&self) -> &BTreeMap<i32, PatternEdge> {
+    pub fn get_edges(&self) -> &BTreeMap<ID, PatternEdge> {
         &self.edges
     }
 
     /// ### Get Vertices References
-    pub fn get_vertices(&self) -> &BTreeMap<i32, PatternVertex> {
+    pub fn get_vertices(&self) -> &BTreeMap<ID, PatternVertex> {
         &self.vertices
     }
 
     /// ### Get PatternEdge Reference from Edge ID
-    pub fn get_edge_from_id(&self, edge_id: i32) -> Option<&PatternEdge> {
+    pub fn get_edge_from_id(&self, edge_id: ID) -> Option<&PatternEdge> {
         self.edges.get(&edge_id)
     }
 
     /// ### Get PatternVertex Reference from Vertex ID
-    pub fn get_vertex_from_id(&self, vertex_id: i32) -> Option<&PatternVertex> {
+    pub fn get_vertex_from_id(&self, vertex_id: ID) -> Option<&PatternVertex> {
         self.vertices.get(&vertex_id)
     }
 
     /// ### [Public] Get the order of both start and end vertices of an edge
-    pub fn get_edge_vertices_index(&self, edge_index: i32) -> Option<(i32, i32)> {
-        if let Some(edge) = self.get_edge_from_id(edge_index) {
+    pub fn get_edge_vertices_index(&self, edge_id: ID) -> Option<(Index, Index)> {
+        if let Some(edge) = self.get_edge_from_id(edge_id) {
             let start_v_index = self.get_vertex_index(edge.start_v_id);
             let end_v_index = self.get_vertex_index(edge.end_v_id);
             Some((start_v_index, end_v_index))
@@ -173,14 +173,14 @@ impl Pattern {
         self.vertex_label_map.len()
     }
 
-    pub fn get_max_edge_label(&self) -> Option<i32> {
+    pub fn get_max_edge_label(&self) -> Option<LabelID> {
         match self.edge_label_map.iter().last() {
             Some((max_label, _)) => Some(*max_label),
             None => None,
         }
     }
 
-    pub fn get_max_vertex_label(&self) -> Option<i32> {
+    pub fn get_max_vertex_label(&self) -> Option<LabelID> {
         match self.vertex_label_map.iter().last() {
             Some((max_label, _)) => Some(*max_label),
             None => None,
@@ -226,7 +226,7 @@ impl Pattern {
 /// Methods for Pattern Encoding and Decoding
 /// Include PatternVertex Reordering and PatternEdge Reordering
 impl Pattern {
-    fn reorder_label_vertices(&mut self, _v_label: i32) {}
+    fn reorder_label_vertices(&mut self, _v_label: LabelID) {}
 
     pub fn reorder_vertices(&mut self) {
         let mut v_labels = Vec::with_capacity(self.vertex_label_map.len());
@@ -239,7 +239,7 @@ impl Pattern {
     }
 
     /// Get the Order of two PatternVertices of a Pattern
-    fn cmp_vertices(&self, v1_id: i32, v2_id: i32) -> Ordering {
+    fn cmp_vertices(&self, v1_id: ID, v2_id: ID) -> Ordering {
         let v1 = self.vertices.get(&v1_id).unwrap();
         let v2 = self.vertices.get(&v2_id).unwrap();
         match v1.label.cmp(&v2.label) {
@@ -293,7 +293,7 @@ impl Pattern {
     }
 
     /// Get the Order of two PatternEdges in a Pattern
-    fn cmp_edges(&self, e1_id: i32, e2_id: i32) -> Ordering {
+    fn cmp_edges(&self, e1_id: ID, e2_id: ID) -> Ordering {
         let e1 = self.edges.get(&e1_id).unwrap();
         let e2 = self.edges.get(&e2_id).unwrap();
         // Compare Edge Label
@@ -315,20 +315,20 @@ impl Pattern {
             _ => (),
         }
         // Get orders for starting vertex
-        let (e1_start_v_order, e1_end_v_order) = self
+        let (e1_start_v_index, e1_end_v_index) = self
             .get_edge_vertices_index(e1.get_id())
             .unwrap();
         let (e2_start_v_order, e2_end_v_order) = self
             .get_edge_vertices_index(e2.get_id())
             .unwrap();
         // Compare the order of the starting vertex
-        match e1_start_v_order.cmp(&e2_start_v_order) {
+        match e1_start_v_index.cmp(&e2_start_v_order) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
         }
         // Compare the order of ending vertex
-        match e1_end_v_order.cmp(&e2_end_v_order) {
+        match e1_end_v_index.cmp(&e2_end_v_order) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
@@ -341,7 +341,7 @@ impl Pattern {
 
 /// Index Ranking
 impl Pattern {
-    pub fn set_vertex_index(&mut self, id: i32, index: i32) {
+    pub fn set_vertex_index(&mut self, id: ID, index: Index) {
         if let Some(vertex) = self.vertices.get_mut(&id) {
             vertex.index = index
         }
@@ -375,7 +375,7 @@ impl Pattern {
 
     /// Get a vector of ordered edges's indexes of a Pattern
     /// The comparison is based on the `cmp_edges` method above to get the Order
-    pub fn get_ordered_edges(&self) -> Vec<i32> {
+    pub fn get_ordered_edges(&self) -> Vec<ID> {
         let mut ordered_edges = Vec::new();
         for (&edge, _) in &self.edges {
             ordered_edges.push(edge);
@@ -385,7 +385,7 @@ impl Pattern {
     }
 
     /// ### Get Vertex Index from Vertex ID Reference
-    pub fn get_vertex_index(&self, v_id: i32) -> i32 {
+    pub fn get_vertex_index(&self, v_id: ID) -> Index {
         self.vertices.get(&v_id).unwrap().index
     }
 }
@@ -394,7 +394,7 @@ impl Pattern {
 impl Pattern {
     /// Get all the vertices(id) with the same vertex label and vertex index
     /// These vertices are equivalent in the Pattern
-    fn get_equivalent_vertices(&self, v_label: i32, v_index: i32) -> Vec<i32> {
+    fn get_equivalent_vertices(&self, v_label: LabelID, v_index: Index) -> Vec<ID> {
         let mut equivalent_vertices = Vec::new();
         if let Some(vs_with_same_label) = self.vertex_label_map.get(&v_label) {
             for v_id in vs_with_same_label {
@@ -409,8 +409,8 @@ impl Pattern {
     }
 
     /// Get the legal id for the future incoming vertex
-    fn get_next_pattern_vertex_id(&self) -> i32 {
-        let mut new_vertex_id = self.vertices.len() as i32;
+    fn get_next_pattern_vertex_id(&self) -> ID {
+        let mut new_vertex_id = self.vertices.len() as ID;
         while self.vertices.contains_key(&new_vertex_id) {
             new_vertex_id += 1;
         }
@@ -418,8 +418,8 @@ impl Pattern {
     }
 
     /// Get the legal id for the future incoming vertex
-    fn get_next_pattern_edge_id(&self) -> i32 {
-        let mut new_edge_id = self.edges.len() as i32;
+    fn get_next_pattern_edge_id(&self) -> ID {
+        let mut new_edge_id = self.edges.len() as ID;
         while self.edges.contains_key(&new_edge_id) {
             new_edge_id += 1;
         }
@@ -578,8 +578,8 @@ impl Pattern {
 }
 
 /// Initialize a Pattern containing only one vertex from hte vertex's id and label
-impl From<(i32, i32)> for Pattern {
-    fn from((vertex_id, vertex_label): (i32, i32)) -> Pattern {
+impl From<(ID, LabelID)> for Pattern {
+    fn from((vertex_id, vertex_label): (ID, LabelID)) -> Pattern {
         let vertex = PatternVertex {
             id: vertex_id,
             label: vertex_label,
@@ -719,6 +719,8 @@ mod tests {
     use std::fs::File;
 
     use ir_core::{plan::meta::Schema, JsonIO};
+
+    use crate::ID;
 
     use super::Direction;
     use super::Pattern;
@@ -919,7 +921,7 @@ mod tests {
         // Pattern after extend should be exactly the same as pattern case2
         let pattern_case2 = build_pattern_case2();
         assert_eq!(pattern_after_extend.edges.len(), pattern_case2.edges.len());
-        for i in 0..pattern_after_extend.edges.len() as i32 {
+        for i in 0..pattern_after_extend.edges.len() as ID {
             let edge1 = pattern_after_extend.edges.get(&i).unwrap();
             let edge2 = pattern_case2.edges.get(&i).unwrap();
             assert_eq!(edge1.id, edge2.id);
@@ -930,7 +932,7 @@ mod tests {
             assert_eq!(edge1.end_v_label, edge2.end_v_label);
         }
         assert_eq!(pattern_after_extend.edges.len(), pattern_case2.edges.len());
-        for i in 0..pattern_after_extend.vertices.len() as i32 {
+        for i in 0..pattern_after_extend.vertices.len() as ID {
             let vertex1 = pattern_after_extend.vertices.get(&i).unwrap();
             let vertex2 = pattern_after_extend.vertices.get(&i).unwrap();
             assert_eq!(vertex1.id, vertex2.id);

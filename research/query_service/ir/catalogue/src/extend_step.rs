@@ -16,30 +16,30 @@
 use std::collections::btree_map::Iter as ExtendStepIter;
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::Direction;
+use crate::{LabelID, Index, Direction};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendEdge {
-    start_v_label: i32,
-    start_v_index: i32,
-    edge_label: i32,
+    start_v_label: LabelID,
+    start_v_index: Index,
+    edge_label: LabelID,
     dir: Direction,
 }
 
 impl ExtendEdge {
-    pub fn new(start_v_label: i32, start_v_index: i32, edge_label: i32, dir: Direction) -> ExtendEdge {
+    pub fn new(start_v_label: LabelID, start_v_index: Index, edge_label: LabelID, dir: Direction) -> ExtendEdge {
         ExtendEdge { start_v_label, start_v_index, edge_label, dir }
     }
 
-    pub fn get_start_vertex_label(&self) -> i32 {
+    pub fn get_start_vertex_label(&self) -> LabelID {
         self.start_v_label
     }
 
-    pub fn get_start_vertex_index(&self) -> i32 {
+    pub fn get_start_vertex_index(&self) -> Index {
         self.start_v_index
     }
 
-    pub fn get_edge_label(&self) -> i32 {
+    pub fn get_edge_label(&self) -> LabelID {
         self.edge_label
     }
 
@@ -50,21 +50,21 @@ impl ExtendEdge {
 
 #[derive(Debug, Clone)]
 pub struct ExtendStep {
-    target_v_label: i32,
+    target_v_label: LabelID,
     // extend edges are classified by their start_v_labels and start_v_indices
-    extend_edges: BTreeMap<(i32, i32), Vec<ExtendEdge>>,
+    extend_edges: BTreeMap<(LabelID, Index), Vec<ExtendEdge>>,
 }
 
 impl ExtendStep {
-    pub fn get_target_v_label(&self) -> i32 {
+    pub fn get_target_v_label(&self) -> LabelID {
         self.target_v_label
     }
 
-    pub fn iter(&self) -> ExtendStepIter<(i32, i32), Vec<ExtendEdge>> {
+    pub fn iter(&self) -> ExtendStepIter<(LabelID, Index), Vec<ExtendEdge>> {
         self.extend_edges.iter()
     }
 
-    pub fn has_extend_from_start_v(&self, v_label: i32, v_index: i32) -> bool {
+    pub fn has_extend_from_start_v(&self, v_label: LabelID, v_index: Index) -> bool {
         self.extend_edges
             .contains_key(&(v_label, v_index))
     }
@@ -81,13 +81,13 @@ impl ExtendStep {
         edges_num
     }
 
-    pub fn get_extend_edges_by_start_v(&self, v_label: i32, v_index: i32) -> Option<&Vec<ExtendEdge>> {
+    pub fn get_extend_edges_by_start_v(&self, v_label: LabelID, v_index: Index) -> Option<&Vec<ExtendEdge>> {
         self.extend_edges.get(&(v_label, v_index))
     }
 }
 
-impl From<(i32, Vec<ExtendEdge>)> for ExtendStep {
-    fn from((target_v_label, edges): (i32, Vec<ExtendEdge>)) -> ExtendStep {
+impl From<(LabelID, Vec<ExtendEdge>)> for ExtendStep {
+    fn from((target_v_label, edges): (LabelID, Vec<ExtendEdge>)) -> ExtendStep {
         let mut new_extend_step = ExtendStep { target_v_label, extend_edges: BTreeMap::new() };
         for edge in edges {
             let edge_vec = new_extend_step
