@@ -18,14 +18,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use fast_math::log2;
 
-use super::extend_step::{ExtendEdge, ExtendStep};
-use super::pattern_meta::PatternMeta;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Direction {
-    Out = 0,
-    In,
-}
+use crate::extend_step::{ExtendEdge, ExtendStep};
+use crate::pattern_meta::PatternMeta;
+use crate::Direction;
 
 #[derive(Debug, Clone)]
 pub struct PatternVertex {

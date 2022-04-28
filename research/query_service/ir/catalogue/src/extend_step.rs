@@ -16,7 +16,7 @@
 use std::collections::btree_map::Iter as ExtendStepIter;
 use std::collections::{BTreeMap, VecDeque};
 
-use super::pattern::Direction;
+use crate::Direction;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendEdge {
@@ -122,7 +122,7 @@ pub fn get_subsets<T: Clone>(origin_vec: Vec<T>) -> Vec<Vec<T>> {
 #[cfg(test)]
 mod tests {
     use crate::extend_step::*;
-    use crate::pattern::*;
+    use crate::Direction;
 
     fn build_extend_step_case1() -> ExtendStep {
         let extend_edge0 =

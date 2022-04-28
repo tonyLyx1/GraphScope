@@ -18,7 +18,8 @@ use std::collections::HashMap;
 use ascii::AsciiString;
 use ascii::ToAsciiChar;
 
-use super::pattern::{Direction, Pattern};
+use crate::Direction;
+use crate::pattern::Pattern;
 use crate::extend_step::{ExtendEdge, ExtendStep};
 use crate::pattern::PatternEdge;
 pub trait Encode<T> {

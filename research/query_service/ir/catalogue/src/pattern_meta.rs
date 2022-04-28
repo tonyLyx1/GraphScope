@@ -17,7 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use ir_core::plan::meta::Schema;
 
-use super::pattern::Direction;
+use crate::Direction;
 
 #[derive(Debug)]
 pub struct PatternMeta {
@@ -199,7 +199,7 @@ mod tests {
     use ir_core::{plan::meta::Schema, JsonIO};
 
     use super::PatternMeta;
-    use crate::pattern::Direction;
+    use crate::Direction;
 
     fn read_modern_graph_schema() -> Schema {
         let modern_schema_file = match File::open("resource/modern_schema.json") {
