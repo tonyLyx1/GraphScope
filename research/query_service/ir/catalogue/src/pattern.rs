@@ -494,7 +494,7 @@ impl Pattern {
                     *v1_connected_edge_id,
                     v1_connected_edge_label,
                     v1_connected_edge_end_v_label,
-                ))            
+                )),
             }
         }
         for (v2_connected_edge_id, (v2_connected_edge_end_v_id, v2_connected_edge_dir)) in
@@ -651,7 +651,7 @@ impl Pattern {
         self.set_initial_index();
         self.set_accurate_index();
     }
-    
+
     /// ### Step-1: Set Initial Indices
     /// Set Initial Vertex Index Based on Comparison of Labels and In/Out Degrees
     fn set_initial_index(&mut self) {
@@ -733,7 +733,9 @@ impl Pattern {
                         .last_mut()
                         .unwrap()
                         .push(vertex_vec[i]),
-                    Ordering::Less => panic!("Error in setting accurate index: vertex_vec is not well sorted"),
+                    Ordering::Less => {
+                        panic!("Error in setting accurate index: vertex_vec is not well sorted")
+                    }
                 }
             }
         }
@@ -745,12 +747,14 @@ impl Pattern {
             let vertex_group: &Vec<i32> = &same_index_vertex_groups[i];
             if vertex_group.len() == 1 {
                 continue;
-            }
-            else {
+            } else {
                 for v_id in vertex_group {
                     let neighbor_info: &mut Vec<(i32, i32)> = &mut Vec::new();
-                    for (edge_id, (target_v_id, _)) in
-                        self.get_vertex_from_id(*v_id).unwrap().get_connected_edges().iter()
+                    for (edge_id, (target_v_id, _)) in self
+                        .get_vertex_from_id(*v_id)
+                        .unwrap()
+                        .get_connected_edges()
+                        .iter()
                     {
                         neighbor_info.push((*edge_id, *target_v_id));
                     }
@@ -770,7 +774,10 @@ impl Pattern {
                 continue;
             }
             if vertex_group.len() > 1 {
-                let initial_index: i32 = self.get_vertex_from_id(vertex_group[0]).unwrap().get_index();
+                let initial_index: i32 = self
+                    .get_vertex_from_id(vertex_group[0])
+                    .unwrap()
+                    .get_index();
                 let mut accurate_index_vec: Vec<i32> = Vec::with_capacity(vertex_group.len());
                 for _ in 0..vertex_group.len() {
                     accurate_index_vec.push(initial_index);
@@ -778,27 +785,43 @@ impl Pattern {
                 for i in 0..(vertex_group.len()) {
                     // We only cares about how many vertices are (smaller) than Vertex i
                     for j in (i + 1)..vertex_group.len() {
-                        match self.cmp_vertices_for_accurate_index(vertex_group[i], vertex_group[j], &mut vertex_neighbor_info_map, &mut visited_map) {
+                        match self.cmp_vertices_for_accurate_index(
+                            vertex_group[i],
+                            vertex_group[j],
+                            &mut vertex_neighbor_info_map,
+                            &mut visited_map,
+                        ) {
                             Ordering::Less => accurate_index_vec[j] += 1,
                             Ordering::Greater => accurate_index_vec[i] += 1,
                             Ordering::Equal => (),
                         }
                     }
                     // Set index to Vertex i
-                    self.get_vertex_mut_from_id(vertex_group[i]).unwrap().set_index(accurate_index_vec[i]);
+                    self.get_vertex_mut_from_id(vertex_group[i])
+                        .unwrap()
+                        .set_index(accurate_index_vec[i]);
                 }
             }
         }
     }
 
-    fn cmp_vertices_for_accurate_index(&mut self, v1_id: i32, v2_id: i32, vertex_neighbor_info_map: &HashMap<i32, Vec<i32>>, visited_map: &mut HashMap<i32, bool>) -> Ordering {
+    fn cmp_vertices_for_accurate_index(
+        &mut self, v1_id: i32, v2_id: i32, vertex_neighbor_info_map: &HashMap<i32, Vec<i32>>,
+        visited_map: &mut HashMap<i32, bool>,
+    ) -> Ordering {
         // Return Equal if the Two Vertices Have the Same Index
         if v1_id == v2_id {
             return Ordering::Equal;
         }
         // Compare their Indices
-        let v1_index = self.get_vertex_from_id(v1_id).unwrap().get_index();
-        let v2_index = self.get_vertex_from_id(v2_id).unwrap().get_index();
+        let v1_index = self
+            .get_vertex_from_id(v1_id)
+            .unwrap()
+            .get_index();
+        let v2_index = self
+            .get_vertex_from_id(v2_id)
+            .unwrap()
+            .get_index();
         match v1_index.cmp(&v2_index) {
             Ordering::Greater => return Ordering::Greater,
             Ordering::Less => return Ordering::Less,
@@ -822,10 +845,17 @@ impl Pattern {
             let v1_neighbor_vertex_id = v1_neighbor_info[i];
             let v2_neighbor_vertex_id = v2_neighbor_info[i];
             // Skip the steps below if the two neighbor vertices are visited
-            if *visited_map.get(&v1_neighbor_vertex_id).unwrap() && *visited_map.get(&v2_neighbor_vertex_id).unwrap() {
+            if *visited_map.get(&v1_neighbor_vertex_id).unwrap()
+                && *visited_map.get(&v2_neighbor_vertex_id).unwrap()
+            {
                 continue;
             }
-            let order: Ordering = self.cmp_vertices_for_accurate_index(v1_neighbor_vertex_id, v2_neighbor_vertex_id, vertex_neighbor_info_map, visited_map);
+            let order: Ordering = self.cmp_vertices_for_accurate_index(
+                v1_neighbor_vertex_id,
+                v2_neighbor_vertex_id,
+                vertex_neighbor_info_map,
+                visited_map,
+            );
             match order {
                 Ordering::Greater => {
                     *visited_map.get_mut(&v1_id).unwrap() = false;
@@ -1312,7 +1342,6 @@ mod tests {
         Pattern::from(pattern_vec)
     }
 
-
     /// Test Cases for Index Ranking
     fn build_pattern_index_ranking_case1() -> (Pattern, HashMap<String, i32>) {
         let mut rng = rand::thread_rng();
@@ -1324,16 +1353,14 @@ mod tests {
         vertex_label_map.insert(String::from("A"), rng.gen::<i32>());
         vertex_id_map.insert(String::from("A0"), rng.gen::<i32>());
         vertex_id_map.insert(String::from("A1"), rng.gen::<i32>());
-        let pattern_vec = vec![
-            PatternEdge {
-                id: rng.gen::<i32>(),
-                label: *edge_label_map.get("A->A").unwrap(),
-                start_v_id: *vertex_id_map.get("A0").unwrap(),
-                end_v_id: *vertex_id_map.get("A1").unwrap(),
-                start_v_label: *vertex_label_map.get("A").unwrap(),
-                end_v_label: *vertex_label_map.get("A").unwrap(),
-            }
-        ];
+        let pattern_vec = vec![PatternEdge {
+            id: rng.gen::<i32>(),
+            label: *edge_label_map.get("A->A").unwrap(),
+            start_v_id: *vertex_id_map.get("A0").unwrap(),
+            end_v_id: *vertex_id_map.get("A1").unwrap(),
+            start_v_label: *vertex_label_map.get("A").unwrap(),
+            end_v_label: *vertex_label_map.get("A").unwrap(),
+        }];
         (Pattern::from(pattern_vec), vertex_id_map)
     }
 
@@ -1532,7 +1559,6 @@ mod tests {
         ];
         (Pattern::from(pattern_vec), vertex_id_map)
     }
-
 
     /// The extend step looks like:
     ///         B
