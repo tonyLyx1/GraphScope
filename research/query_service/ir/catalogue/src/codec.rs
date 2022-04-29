@@ -630,7 +630,10 @@ impl DecodeUnit {
         }
         let mut pattern = Pattern::from(pattern_edges);
         for ((_, index), id) in vertices_label_index_id_map {
-            pattern.set_vertex_index(id, index);
+            pattern
+                .get_vertex_mut_from_id(id)
+                .unwrap()
+                .set_index(index);
         }
         pattern
     }
