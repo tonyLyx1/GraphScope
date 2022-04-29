@@ -18,7 +18,8 @@ use std::collections::HashMap;
 use ascii::{AsciiString, ToAsciiChar};
 
 use super::extend_step::{ExtendEdge, ExtendStep};
-use super::pattern::{Direction, Pattern, PatternEdge};
+use super::pattern::{Pattern, PatternEdge};
+use crate::Direction;
 
 pub trait Encode<T> {
     fn encode_to(&self, encoder: &Encoder) -> T;
@@ -527,7 +528,7 @@ impl DecodeUnit {
         }
         let mut extend_edges = Vec::with_capacity(decode_vec.len() / 4);
         for i in (0..decode_vec.len() - 4).step_by(4) {
-            let dir = if decode_vec[i] == 0 { Direction::Out } else { Direction::Incoming };
+            let dir = if decode_vec[i] == 0 { Direction::Out } else { Direction::In };
             let edge_label = decode_vec[i + 1];
             let start_v_index = decode_vec[i + 2];
             let start_v_label = decode_vec[i + 3];
@@ -617,7 +618,7 @@ mod tests {
     fn build_extend_step_case1() -> ExtendStep {
         let target_v_label = 3;
         let extend_edge_1 = ExtendEdge::new(1, 0, 1, Direction::Out);
-        let extend_edge_2 = ExtendEdge::new(1, 1, 1, Direction::Incoming);
+        let extend_edge_2 = ExtendEdge::new(1, 1, 1, Direction::In);
         let extend_edge_3 = ExtendEdge::new(2, 0, 2, Direction::Out);
         ExtendStep::from((target_v_label, vec![extend_edge_1, extend_edge_2, extend_edge_3]))
     }

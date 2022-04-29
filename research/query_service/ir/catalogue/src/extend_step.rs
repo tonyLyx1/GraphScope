@@ -16,7 +16,7 @@
 use std::collections::btree_map::Iter as ExtendStepIter;
 use std::collections::{BTreeMap, VecDeque};
 
-use super::pattern::Direction;
+use crate::Direction;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendEdge {

@@ -17,7 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use ir_core::plan::meta::Schema;
 
-use super::pattern::Direction;
+use crate::Direction;
 
 #[derive(Debug)]
 pub struct PatternMeta {
@@ -93,7 +93,7 @@ impl PatternMeta {
                         if *start_v_id == src_v_id && *dir == Direction::Out {
                             connect_vertices.insert(*end_v_id);
                         }
-                        if *end_v_id == src_v_id && *dir == Direction::Incoming {
+                        if *end_v_id == src_v_id && *dir == Direction::In {
                             connect_vertices.insert(*start_v_id);
                         }
                     }
@@ -164,7 +164,7 @@ impl From<Schema> for PatternMeta {
                             .vertex_connect_edges
                             .entry(end_v_id)
                             .or_insert(BTreeSet::new())
-                            .insert((*id, Direction::Incoming));
+                            .insert((*id, Direction::In));
                         pattern_meta
                             .edge_connect_vertices
                             .entry(*id)
@@ -179,7 +179,7 @@ impl From<Schema> for PatternMeta {
                             .vertex_vertex_edges
                             .entry((end_v_id, start_v_id))
                             .or_insert(Vec::new())
-                            .push((*id, Direction::Incoming));
+                            .push((*id, Direction::In));
                     }
                 }
                 None => {
@@ -200,7 +200,7 @@ mod tests {
     use ir_core::{plan::meta::Schema, JsonIO};
 
     use super::PatternMeta;
-    use crate::pattern::Direction;
+    use crate::Direction;
 
     fn read_modern_graph_schema() -> Schema {
         let modern_schema_file = match File::open("resource/modern_schema.json") {
@@ -311,7 +311,7 @@ mod tests {
                 vertex_vertex_edges
                     .entry((end_v_id, start_v_id))
                     .or_insert(Vec::new())
-                    .push((edge_id, Direction::Incoming));
+                    .push((edge_id, Direction::In));
             }
         }
         for ((start_v_id, end_v_id), mut connections) in vertex_vertex_edges {
@@ -337,11 +337,11 @@ mod tests {
                             .or_insert(Vec::new())
                             .push((edge_id, Direction::Out));
                     }
-                    if end_v_id == vertex_id && dir == Direction::Incoming {
+                    if end_v_id == vertex_id && dir == Direction::In {
                         vertex_vertex_edges
                             .entry((end_v_id, start_v_id))
                             .or_insert(Vec::new())
-                            .push((edge_id, Direction::Incoming));
+                            .push((edge_id, Direction::In));
                     }
                 }
             }
