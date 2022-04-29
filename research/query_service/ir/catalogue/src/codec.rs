@@ -397,7 +397,8 @@ impl EncodeUnit {
     /// Transform an EncodeUnit to a Vec<u8> code
     pub fn to_vec_u8(&self, storage_unit_bit_num: usize) -> Vec<u8> {
         let unit_len = self.values.len();
-        let storage_unit_num = self.heads[unit_len - 1] / storage_unit_bit_num + 1;
+        // self.heads[unit_len - 1] (+ 1) add one for extra bits indicating the end of the code
+        let storage_unit_num = (self.heads[unit_len - 1] + 1) / storage_unit_bit_num + 1;
         let mut encode_vec = Vec::with_capacity(storage_unit_num as usize);
         for i in (0..storage_unit_num).rev() {
             let mut unit_value: u8 = 0;
@@ -410,6 +411,14 @@ impl EncodeUnit {
             }
             encode_vec.push(unit_value);
         }
+        // add add one for extra bits indicating the end of the code
+        encode_vec[0] += Encoder::get_encode_numerical_value(
+            1,
+            self.heads[unit_len - 1] + 1,
+            self.heads[unit_len - 1] + 1,
+            storage_unit_bit_num,
+            storage_unit_num - 1,
+        );
         encode_vec
     }
 
@@ -529,7 +538,8 @@ impl DecodeUnit {
     pub fn decode_to_vec_i32(&self, src_code: &[u8], storage_unit_bit_num: usize) -> Vec<i32> {
         let mut decoded_vec = Vec::new();
         let bit_per_extend_edge: usize = self.unit_bits.iter().sum();
-        let src_code_bit_sum = Encoder::get_src_code_effective_bit_num(&src_code, storage_unit_bit_num);
+        // - 1 means delete tbe bit indicating the end of the code
+        let src_code_bit_sum = Encoder::get_src_code_effective_bit_num(&src_code, storage_unit_bit_num) - 1;
 
         let mut unit_tail: usize = 0;
         let mut unit_head: usize = bit_per_extend_edge - 1;
@@ -750,12 +760,12 @@ mod tests {
         let encoder = Encoder::init(2, 2, 2, 2);
         let encode_unit_1 = EncodeUnit::from_pattern_edge(&pattern, edge1, &encoder);
         let encode_string_1 = encode_unit_1.to_ascii_string();
-        let expected_encode_string_1: AsciiString = generate_asciistring_from_vec(&vec![2, 96]);
+        let expected_encode_string_1: AsciiString = generate_asciistring_from_vec(&vec![10, 96]);
         assert_eq!(encode_string_1.len(), 2);
         assert_eq!(encode_string_1, expected_encode_string_1);
         let encode_unit_2 = EncodeUnit::from_pattern_edge(&pattern, edge2, &encoder);
         let encode_string_2 = encode_unit_2.to_ascii_string();
-        let expected_encode_string_2: AsciiString = generate_asciistring_from_vec(&vec![4, 112]);
+        let expected_encode_string_2: AsciiString = generate_asciistring_from_vec(&vec![12, 112]);
         assert_eq!(encode_string_2.len(), 2);
         assert_eq!(encode_string_2, expected_encode_string_2);
     }
@@ -768,12 +778,12 @@ mod tests {
         let encoder = Encoder::init(2, 2, 2, 2);
         let encode_unit_1 = EncodeUnit::from_pattern_edge(&pattern, edge1, &encoder);
         let encode_vec_1 = encode_unit_1.to_vec_u8(8);
-        let expected_encode_vec_1: Vec<u8> = vec![1, 96];
+        let expected_encode_vec_1: Vec<u8> = vec![5, 96];
         assert_eq!(encode_vec_1.len(), 2);
         assert_eq!(encode_vec_1, expected_encode_vec_1);
         let encode_unit_2 = EncodeUnit::from_pattern_edge(&pattern, edge2, &encoder);
         let encode_vec_2 = encode_unit_2.to_vec_u8(8);
-        let expected_encode_vec_2: Vec<u8> = vec![2, 112];
+        let expected_encode_vec_2: Vec<u8> = vec![6, 112];
         assert_eq!(encode_vec_2.len(), 2);
         assert_eq!(encode_vec_2, expected_encode_vec_2);
     }
