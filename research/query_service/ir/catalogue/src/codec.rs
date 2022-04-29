@@ -24,13 +24,13 @@ use crate::pattern::Pattern;
 use crate::pattern::PatternEdge;
 use crate::Direction;
 
-pub trait Codec<T> {
+pub trait Cypher<T> {
     fn encode_to(&self, encoder: &Encoder) -> T;
 
     fn decode_from(src_code: T, encoder: &Encoder) -> Self;
 }
 
-impl Codec<Vec<u8>> for Pattern {
+impl Cypher<Vec<u8>> for Pattern {
     fn encode_to(&self, encoder: &Encoder) -> Vec<u8> {
         let pattern_encode_unit = EncodeUnit::from_pattern(self, encoder);
         pattern_encode_unit.to_vec_u8(8)
@@ -43,7 +43,7 @@ impl Codec<Vec<u8>> for Pattern {
     }
 }
 
-impl Codec<AsciiString> for Pattern {
+impl Cypher<AsciiString> for Pattern {
     fn encode_to(&self, encoder: &Encoder) -> AsciiString {
         let pattern_encode_unit = EncodeUnit::from_pattern(self, encoder);
         pattern_encode_unit.to_ascii_string()
@@ -56,7 +56,7 @@ impl Codec<AsciiString> for Pattern {
     }
 }
 
-impl Codec<Vec<u8>> for ExtendStep {
+impl Cypher<Vec<u8>> for ExtendStep {
     fn encode_to(&self, encoder: &Encoder) -> Vec<u8> {
         let extend_step_encode_unit = EncodeUnit::from_extend_step(self, encoder);
         extend_step_encode_unit.to_vec_u8(8)
@@ -69,7 +69,7 @@ impl Codec<Vec<u8>> for ExtendStep {
     }
 }
 
-impl Codec<AsciiString> for ExtendStep {
+impl Cypher<AsciiString> for ExtendStep {
     fn encode_to(&self, encoder: &Encoder) -> AsciiString {
         let extend_step_encode_unit = EncodeUnit::from_extend_step(self, encoder);
         extend_step_encode_unit.to_ascii_string()
@@ -784,7 +784,7 @@ mod tests {
         let pattern_edge1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
         let pattern_edge2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
         let encoder = Encoder::init(2, 2, 2, 2);
-        let encode_value = <Pattern as Codec<AsciiString>>::encode_to(&pattern, &encoder);
+        let encode_value = <Pattern as Cypher<AsciiString>>::encode_to(&pattern, &encoder);
         let mut connect_encode_unit = EncodeUnit::from_pattern_edge(&pattern, &pattern_edge1, &encoder);
         connect_encode_unit.extend_by_another_unit(&EncodeUnit::from_pattern_edge(
             &pattern,
@@ -801,7 +801,7 @@ mod tests {
         let pattern_edge1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
         let pattern_edge2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
         let encoder = Encoder::init(2, 2, 2, 2);
-        let encode_value = <Pattern as Codec<Vec<u8>>>::encode_to(&pattern, &encoder);
+        let encode_value = <Pattern as Cypher<Vec<u8>>>::encode_to(&pattern, &encoder);
         let mut connect_encode_unit = EncodeUnit::from_pattern_edge(&pattern, &pattern_edge1, &encoder);
         connect_encode_unit.extend_by_another_unit(&EncodeUnit::from_pattern_edge(
             &pattern,
@@ -985,7 +985,7 @@ mod tests {
         let pattern_1 = build_pattern_testcase_1();
         let encoder = Encoder::init(2, 2, 2, 2);
         let pattern_1_code: Vec<u8> = pattern_1.encode_to(&encoder);
-        let pattern_1_from_decode: Pattern = Codec::decode_from(pattern_1_code.clone(), &encoder);
+        let pattern_1_from_decode: Pattern = Cypher::decode_from(pattern_1_code.clone(), &encoder);
         let pattern_1_code_from_decode: Vec<u8> = pattern_1_from_decode.encode_to(&encoder);
         assert_eq!(pattern_1_code, pattern_1_code_from_decode);
     }
@@ -995,7 +995,7 @@ mod tests {
         let pattern_1 = build_pattern_testcase_1();
         let encoder = Encoder::init(2, 2, 2, 2);
         let pattern_1_code: AsciiString = pattern_1.encode_to(&encoder);
-        let pattern_1_from_decode: Pattern = Codec::decode_from(pattern_1_code.clone(), &encoder);
+        let pattern_1_from_decode: Pattern = Cypher::decode_from(pattern_1_code.clone(), &encoder);
         let pattern_1_code_from_decode: AsciiString = pattern_1_from_decode.encode_to(&encoder);
         assert_eq!(pattern_1_code, pattern_1_code_from_decode);
     }
@@ -1005,7 +1005,7 @@ mod tests {
         let pattern_1 = build_pattern_testcase_2();
         let encoder = Encoder::init_by_pattern(&pattern_1, 2);
         let pattern_1_code: Vec<u8> = pattern_1.encode_to(&encoder);
-        let pattern_1_from_decode: Pattern = Codec::decode_from(pattern_1_code.clone(), &encoder);
+        let pattern_1_from_decode: Pattern = Cypher::decode_from(pattern_1_code.clone(), &encoder);
         let pattern_1_code_from_decode: Vec<u8> = pattern_1_from_decode.encode_to(&encoder);
         assert_eq!(pattern_1_code, pattern_1_code_from_decode);
     }
@@ -1015,7 +1015,7 @@ mod tests {
         let pattern_1 = build_pattern_testcase_2();
         let encoder = Encoder::init(3, 3, 3, 3);
         let pattern_1_code: AsciiString = pattern_1.encode_to(&encoder);
-        let pattern_1_from_decode: Pattern = Codec::decode_from(pattern_1_code.clone(), &encoder);
+        let pattern_1_from_decode: Pattern = Cypher::decode_from(pattern_1_code.clone(), &encoder);
         let pattern_1_code_from_decode: AsciiString = pattern_1_from_decode.encode_to(&encoder);
         assert_eq!(pattern_1_code, pattern_1_code_from_decode);
     }
@@ -1025,7 +1025,7 @@ mod tests {
         let extend_step_1 = build_extend_step_case1();
         let encoder = Encoder::init(2, 2, 2, 2);
         let extend_step_1_code: Vec<u8> = extend_step_1.encode_to(&encoder);
-        let extend_step_1_from_decode: ExtendStep = Codec::decode_from(extend_step_1_code, &encoder);
+        let extend_step_1_from_decode: ExtendStep = Cypher::decode_from(extend_step_1_code, &encoder);
         assert_eq!(extend_step_1.get_target_v_label(), extend_step_1_from_decode.get_target_v_label());
         assert_eq!(extend_step_1.get_extend_edges_num(), extend_step_1_from_decode.get_extend_edges_num());
         assert_eq!(
@@ -1059,7 +1059,7 @@ mod tests {
         let extend_step_1 = build_extend_step_case1();
         let encoder = Encoder::init(2, 2, 2, 2);
         let extend_step_1_code: AsciiString = extend_step_1.encode_to(&encoder);
-        let extend_step_1_from_decode: ExtendStep = Codec::decode_from(extend_step_1_code, &encoder);
+        let extend_step_1_from_decode: ExtendStep = Cypher::decode_from(extend_step_1_code, &encoder);
         assert_eq!(extend_step_1.get_target_v_label(), extend_step_1_from_decode.get_target_v_label());
         assert_eq!(extend_step_1.get_extend_edges_num(), extend_step_1_from_decode.get_extend_edges_num());
         assert_eq!(

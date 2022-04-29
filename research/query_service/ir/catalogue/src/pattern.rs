@@ -22,15 +22,6 @@ use crate::extend_step::{ExtendEdge, ExtendStep};
 use crate::pattern_meta::PatternMeta;
 use crate::{Direction, Index, LabelID, ID};
 
-impl Direction {
-    pub fn to_u8(&self) -> u8 {
-        match self {
-            Direction::Out => 0,
-            Direction::In => 1,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct PatternVertex {
     id: ID,
@@ -503,8 +494,7 @@ impl Pattern {
                     *v1_connected_edge_id,
                     v1_connected_edge_label,
                     v1_connected_edge_end_v_label,
-                )),
-                _ => panic!("Error in comparing vertices: invalid Direction Enum Type Value"),
+                ))            
             }
         }
         for (v2_connected_edge_id, (v2_connected_edge_end_v_id, v2_connected_edge_dir)) in
@@ -529,7 +519,6 @@ impl Pattern {
                     v2_connected_edge_label,
                     v2_connected_edge_end_v_label,
                 )),
-                _ => panic!("Error in comparing vertices: invalid Direction Enum Type Value"),
             }
         }
         // Double check the vector length in case of segmentation fault
@@ -711,7 +700,7 @@ impl Pattern {
         }
         // Iteratively find a group of vertices sharing the same index
         let mut same_index_vertex_groups: Vec<Vec<i32>> = Vec::new();
-        for (v_label, vertex_set) in self.get_vertex_label_map().iter() {
+        for (_, vertex_set) in self.get_vertex_label_map().iter() {
             let mut vertex_vec: Vec<i32> = Vec::new();
             // Push all the vertices with the same label into a vector
             for v_id in vertex_set.iter() {
@@ -760,7 +749,7 @@ impl Pattern {
             else {
                 for v_id in vertex_group {
                     let neighbor_info: &mut Vec<(i32, i32)> = &mut Vec::new();
-                    for (edge_id, (target_v_id, edge_direction)) in
+                    for (edge_id, (target_v_id, _)) in
                         self.get_vertex_from_id(*v_id).unwrap().get_connected_edges().iter()
                     {
                         neighbor_info.push((*edge_id, *target_v_id));
