@@ -299,12 +299,12 @@ impl Pattern {
     }
 
     /// Get Edge Label Map Reference
-    pub fn get_edge_label_map(&self) -> &BTreeMap<i32, BTreeSet<i32>> {
+    pub fn get_edge_label_map(&self) -> &BTreeMap<LabelID, BTreeSet<ID>> {
         &self.edge_label_map
     }
 
     /// Get Vertex Label Map Reference
-    pub fn get_vertex_label_map(&self) -> &BTreeMap<i32, BTreeSet<i32>> {
+    pub fn get_vertex_label_map(&self) -> &BTreeMap<LabelID, BTreeSet<ID>> {
         &self.vertex_label_map
     }
 
@@ -318,11 +318,11 @@ impl Pattern {
         self.vertices.get(&vertex_id)
     }
 
-    pub fn get_edge_mut_from_id(&mut self, edge_id: i32) -> Option<&mut PatternEdge> {
+    pub fn get_edge_mut_from_id(&mut self, edge_id: ID) -> Option<&mut PatternEdge> {
         self.edges.get_mut(&edge_id)
     }
 
-    pub fn get_vertex_mut_from_id(&mut self, vertex_id: i32) -> Option<&mut PatternVertex> {
+    pub fn get_vertex_mut_from_id(&mut self, vertex_id: ID) -> Option<&mut PatternVertex> {
         self.vertices.get_mut(&vertex_id)
     }
 
@@ -431,7 +431,7 @@ impl Pattern {
 
     /// Get a vector of ordered edges's indexes of a Pattern
     /// The comparison is based on the `cmp_edges` method above to get the Order
-    pub fn get_ordered_edges(&self) -> Vec<i32> {
+    pub fn get_ordered_edges(&self) -> Vec<ID> {
         let mut ordered_edges = Vec::new();
         for (&edge, _) in &self.edges {
             ordered_edges.push(edge);
@@ -441,7 +441,7 @@ impl Pattern {
     }
 
     /// Get the Order of two PatternVertices of a Pattern
-    fn cmp_vertices(&self, v1_id: i32, v2_id: i32) -> Ordering {
+    fn cmp_vertices(&self, v1_id: ID, v2_id: ID) -> Ordering {
         if v1_id == v2_id {
             return Ordering::Equal;
         }
@@ -469,10 +469,10 @@ impl Pattern {
         // The 3-element tuple stores (edge_id, edge_label, end_v_label)
         let v1_connected_edges_iter = v1.get_connected_edges().iter();
         let v2_connected_edges_iter = v2.get_connected_edges().iter();
-        let mut v1_connected_out_edges_info_array: Vec<(i32, i32, i32)> = Vec::with_capacity(v1.out_degree);
-        let mut v1_connected_in_edges_info_array: Vec<(i32, i32, i32)> = Vec::with_capacity(v1.in_degree);
-        let mut v2_connected_out_edges_info_array: Vec<(i32, i32, i32)> = Vec::with_capacity(v2.out_degree);
-        let mut v2_connected_in_edges_info_array: Vec<(i32, i32, i32)> = Vec::with_capacity(v2.in_degree);
+        let mut v1_connected_out_edges_info_array: Vec<(ID, LabelID, LabelID)> = Vec::with_capacity(v1.out_degree);
+        let mut v1_connected_in_edges_info_array: Vec<(ID, LabelID, LabelID)> = Vec::with_capacity(v1.in_degree);
+        let mut v2_connected_out_edges_info_array: Vec<(ID, LabelID, LabelID)> = Vec::with_capacity(v2.out_degree);
+        let mut v2_connected_in_edges_info_array: Vec<(ID, LabelID, LabelID)> = Vec::with_capacity(v2.in_degree);
         for (v1_connected_edge_id, (v1_connected_edge_end_v_id, v1_connected_edge_dir)) in
             v1_connected_edges_iter
         {
@@ -566,7 +566,7 @@ impl Pattern {
     /// Considers only the edge label, start/end vertex label
     ///
     /// Vertex Infices are not considered
-    fn cmp_edges_without_index(&self, e1_id: i32, e2_id: i32) -> Ordering {
+    fn cmp_edges_without_index(&self, e1_id: ID, e2_id: ID) -> Ordering {
         if e1_id == e2_id {
             return Ordering::Equal;
         }
@@ -596,7 +596,7 @@ impl Pattern {
 
     /// ### Get the Order of two PatternEdges in a Pattern
     /// Vertex Indices are taken into consideration
-    fn cmp_edges(&self, e1_id: i32, e2_id: i32) -> Ordering {
+    fn cmp_edges(&self, e1_id: ID, e2_id: ID) -> Ordering {
         if e1_id == e2_id {
             return Ordering::Equal;
         }
@@ -694,14 +694,14 @@ impl Pattern {
     /// Set Accurate Indices According to the Initial Indices Set in Step-1
     fn set_accurate_index(&mut self) {
         // Initializde the visited Hashmap for all the vertices
-        let mut visited_map: HashMap<i32, bool> = HashMap::new();
+        let mut visited_map: HashMap<ID, bool> = HashMap::new();
         for (v_id, _) in self.get_vertices().iter() {
             visited_map.insert(*v_id, false);
         }
         // Iteratively find a group of vertices sharing the same index
-        let mut same_index_vertex_groups: Vec<Vec<i32>> = Vec::new();
+        let mut same_index_vertex_groups: Vec<Vec<ID>> = Vec::new();
         for (_, vertex_set) in self.get_vertex_label_map().iter() {
-            let mut vertex_vec: Vec<i32> = Vec::new();
+            let mut vertex_vec: Vec<ID> = Vec::new();
             // Push all the vertices with the same label into a vector
             for v_id in vertex_set.iter() {
                 vertex_vec.push(*v_id);
@@ -742,14 +742,14 @@ impl Pattern {
         same_index_vertex_groups.retain(|vertex_group| vertex_group.len() > 1);
 
         // Constructing Neighboring Information for Vertex Groups Sharing the Same Index
-        let mut vertex_neighbor_info_map: HashMap<i32, Vec<i32>> = HashMap::new();
+        let mut vertex_neighbor_info_map: HashMap<ID, Vec<ID>> = HashMap::new();
         for i in 0..same_index_vertex_groups.len() {
             let vertex_group: &Vec<i32> = &same_index_vertex_groups[i];
             if vertex_group.len() == 1 {
                 continue;
             } else {
                 for v_id in vertex_group {
-                    let neighbor_info: &mut Vec<(i32, i32)> = &mut Vec::new();
+                    let neighbor_info: &mut Vec<(ID, ID)> = &mut Vec::new();
                     for (edge_id, (target_v_id, _)) in self
                         .get_vertex_from_id(*v_id)
                         .unwrap()
@@ -759,7 +759,7 @@ impl Pattern {
                         neighbor_info.push((*edge_id, *target_v_id));
                     }
                     neighbor_info.sort_by(|edge_1, edge_2| self.cmp_edges(edge_1.0, edge_2.0));
-                    let mut neighbor_vertices: Vec<i32> = Vec::with_capacity(neighbor_info.len());
+                    let mut neighbor_vertices: Vec<ID> = Vec::with_capacity(neighbor_info.len());
                     for i in 0..neighbor_info.len() {
                         neighbor_vertices.push(neighbor_info[i].1);
                     }
@@ -774,11 +774,11 @@ impl Pattern {
                 continue;
             }
             if vertex_group.len() > 1 {
-                let initial_index: i32 = self
+                let initial_index: Index = self
                     .get_vertex_from_id(vertex_group[0])
                     .unwrap()
                     .get_index();
-                let mut accurate_index_vec: Vec<i32> = Vec::with_capacity(vertex_group.len());
+                let mut accurate_index_vec: Vec<Index> = Vec::with_capacity(vertex_group.len());
                 for _ in 0..vertex_group.len() {
                     accurate_index_vec.push(initial_index);
                 }
@@ -806,8 +806,8 @@ impl Pattern {
     }
 
     fn cmp_vertices_for_accurate_index(
-        &mut self, v1_id: i32, v2_id: i32, vertex_neighbor_info_map: &HashMap<i32, Vec<i32>>,
-        visited_map: &mut HashMap<i32, bool>,
+        &mut self, v1_id: ID, v2_id: ID, vertex_neighbor_info_map: &HashMap<ID, Vec<ID>>,
+        visited_map: &mut HashMap<ID, bool>,
     ) -> Ordering {
         // Return Equal if the Two Vertices Have the Same Index
         if v1_id == v2_id {
