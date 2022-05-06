@@ -25,11 +25,11 @@ pub struct PatternMeta {
     vertex_map: BTreeMap<String, LabelID>,
     /// Key: edge label name, Value: edge label id
     edge_map: BTreeMap<String, LabelID>,
-    /// Key: vertex id, Value: BTreeSet<(edge id, direction)>
+    /// Key: vertex label id, Value: BTreeSet<(edge label id, direction)>
     vertex_connect_edges: BTreeMap<LabelID, BTreeSet<(LabelID, Direction)>>,
-    /// Key: edge id, Value: Vec<(src vertex id, dst vertex id)>
+    /// Key: edge label id, Value: Vec<(src vertex label id, dst vertex label id)>
     edge_connect_vertices: BTreeMap<LabelID, Vec<(LabelID, LabelID)>>,
-    /// Key: (src vertex id, dst vertex id), Value: Vec<(edge id, direction)>
+    /// Key: (src vertex label id, dst vertex label id), Value: Vec<(edge label id, direction)>
     vertex_vertex_edges: BTreeMap<(LabelID, LabelID), Vec<(LabelID, Direction)>>,
 }
 
