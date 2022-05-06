@@ -19,10 +19,10 @@ use ascii::AsciiChar;
 use ascii::AsciiString;
 use ascii::ToAsciiChar;
 
-use crate::extend_step::{ExtendEdge, ExtendStep};
-use crate::pattern::Pattern;
-use crate::pattern::PatternEdge;
-use crate::Direction;
+use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
+use crate::catalogue::pattern::Pattern;
+use crate::catalogue::pattern::PatternEdge;
+use crate::catalogue::Direction;
 
 pub trait Cipher<T> {
     fn encode_to(&self, encoder: &Encoder) -> T;
@@ -656,9 +656,9 @@ impl DecodeUnit {
 mod tests {
     use ascii::{self, AsciiString, ToAsciiChar};
 
-    use crate::codec::*;
-    use crate::pattern::*;
-    use crate::test_cases::*;
+    use crate::catalogue::codec::*;
+    use crate::catalogue::pattern::*;
+    use crate::catalogue::test_cases::*;
 
     /// ### Generate AsciiString from Vector
     fn generate_asciistring_from_vec(vec: &[u8]) -> AsciiString {

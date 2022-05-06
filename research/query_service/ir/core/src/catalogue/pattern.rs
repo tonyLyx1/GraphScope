@@ -18,16 +18,16 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use fast_math::log2;
 
-use crate::extend_step::{ExtendEdge, ExtendStep};
-use crate::pattern_meta::PatternMeta;
-use crate::{Direction, Index, LabelID, ID};
+use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
+use crate::catalogue::pattern_meta::PatternMeta;
+use crate::catalogue::{Direction, Index, LabelId, ID};
 
 // use ir_common::generated::algebra as pb;
 
 #[derive(Debug, Clone)]
 pub struct PatternVertex {
     id: ID,
-    label: LabelID,
+    label: LabelId,
     /// Used to Identify vertices with same label
     index: Index,
     /// Key: edge id, Value: (vertex id, direction)
@@ -46,7 +46,7 @@ impl PatternVertex {
         self.id
     }
 
-    pub fn get_label(&self) -> LabelID {
+    pub fn get_label(&self) -> LabelId {
         self.label
     }
 
@@ -97,18 +97,18 @@ impl PatternVertex {
 #[derive(Debug, Clone, Copy)]
 pub struct PatternEdge {
     id: ID,
-    label: LabelID,
+    label: LabelId,
     start_v_id: ID,
     end_v_id: ID,
-    start_v_label: LabelID,
-    end_v_label: LabelID,
+    start_v_label: LabelId,
+    end_v_label: LabelId,
 }
 
 /// Initializers of PatternEdge
 impl PatternEdge {
     /// Initializer
     pub fn new(
-        id: ID, label: LabelID, start_v_id: ID, end_v_id: ID, start_v_label: LabelID, end_v_label: LabelID,
+        id: ID, label: LabelId, start_v_id: ID, end_v_id: ID, start_v_label: LabelId, end_v_label: LabelId,
     ) -> PatternEdge {
         PatternEdge { id, label, start_v_id, end_v_id, start_v_label, end_v_label }
     }
@@ -120,7 +120,7 @@ impl PatternEdge {
         self.id
     }
 
-    pub fn get_label(&self) -> LabelID {
+    pub fn get_label(&self) -> LabelId {
         self.label
     }
 
@@ -132,11 +132,11 @@ impl PatternEdge {
         self.end_v_id
     }
 
-    pub fn get_start_vertex_label(&self) -> LabelID {
+    pub fn get_start_vertex_label(&self) -> LabelId {
         self.start_v_label
     }
 
-    pub fn get_end_vertex_label(&self) -> LabelID {
+    pub fn get_end_vertex_label(&self) -> LabelId {
         self.end_v_label
     }
 }
@@ -148,15 +148,15 @@ pub struct Pattern {
     /// Key: vertex id, Value: struct PatternVertex
     vertices: BTreeMap<ID, PatternVertex>,
     /// Key: edge label id, Value: BTreeSet<edge id>
-    edge_label_map: BTreeMap<LabelID, BTreeSet<ID>>,
+    edge_label_map: BTreeMap<LabelId, BTreeSet<ID>>,
     /// Key: vertex label id, Value: BTreeSet<vertex id>
-    vertex_label_map: BTreeMap<LabelID, BTreeSet<ID>>,
+    vertex_label_map: BTreeMap<LabelId, BTreeSet<ID>>,
 }
 
 /// Initializers of Pattern
 /// Initialize a Pattern containing only one vertex from hte vertex's id and label
-impl From<(ID, LabelID)> for Pattern {
-    fn from((vertex_id, vertex_label): (ID, LabelID)) -> Pattern {
+impl From<(ID, LabelId)> for Pattern {
+    fn from((vertex_id, vertex_label): (ID, LabelId)) -> Pattern {
         let vertex = PatternVertex {
             id: vertex_id,
             label: vertex_label,
@@ -296,10 +296,12 @@ impl From<Vec<PatternEdge>> for Pattern {
 //         let mut pattern_edges = Vec::new();
 //         let mut tag_id_map: HashMap<String, ID> = HashMap::new();
 //         for sentence in &pattern_message.sentences {
-//             if sentence.start == None {
+//             if sentence.start == None || sentence.binders.len() == 0 {
 //                 return Err(());
 //             }
+//             for binder in sentence.binders.iter() {
 
+//             }
 //         }
 //         Ok(Pattern::from(pattern_edges))
 //     }
@@ -318,12 +320,12 @@ impl Pattern {
     }
 
     /// Get Edge Label Map Reference
-    pub fn get_edge_label_map(&self) -> &BTreeMap<LabelID, BTreeSet<ID>> {
+    pub fn get_edge_label_map(&self) -> &BTreeMap<LabelId, BTreeSet<ID>> {
         &self.edge_label_map
     }
 
     /// Get Vertex Label Map Reference
-    pub fn get_vertex_label_map(&self) -> &BTreeMap<LabelID, BTreeSet<ID>> {
+    pub fn get_vertex_label_map(&self) -> &BTreeMap<LabelId, BTreeSet<ID>> {
         &self.vertex_label_map
     }
 
@@ -382,7 +384,7 @@ impl Pattern {
     }
 
     /// Get the maximum edge label id of the current pattern
-    pub fn get_max_edge_label(&self) -> Option<LabelID> {
+    pub fn get_max_edge_label(&self) -> Option<LabelId> {
         match self.edge_label_map.iter().last() {
             Some((max_label, _)) => Some(*max_label),
             None => None,
@@ -390,7 +392,7 @@ impl Pattern {
     }
 
     /// Get the maximum vertex label id of the current pattern
-    pub fn get_max_vertex_label(&self) -> Option<LabelID> {
+    pub fn get_max_vertex_label(&self) -> Option<LabelId> {
         match self.vertex_label_map.iter().last() {
             Some((max_label, _)) => Some(*max_label),
             None => None,
@@ -572,13 +574,13 @@ impl Pattern {
         // The 3-element tuple stores (edge_id, edge_label, end_v_label)
         let v1_connected_edges_iter = v1.get_connected_edges().iter();
         let v2_connected_edges_iter = v2.get_connected_edges().iter();
-        let mut v1_connected_out_edges_info_array: Vec<(ID, LabelID, LabelID)> =
+        let mut v1_connected_out_edges_info_array: Vec<(ID, LabelId, LabelId)> =
             Vec::with_capacity(v1.out_degree);
-        let mut v1_connected_in_edges_info_array: Vec<(ID, LabelID, LabelID)> =
+        let mut v1_connected_in_edges_info_array: Vec<(ID, LabelId, LabelId)> =
             Vec::with_capacity(v1.in_degree);
-        let mut v2_connected_out_edges_info_array: Vec<(ID, LabelID, LabelID)> =
+        let mut v2_connected_out_edges_info_array: Vec<(ID, LabelId, LabelId)> =
             Vec::with_capacity(v2.out_degree);
-        let mut v2_connected_in_edges_info_array: Vec<(ID, LabelID, LabelID)> =
+        let mut v2_connected_in_edges_info_array: Vec<(ID, LabelId, LabelId)> =
             Vec::with_capacity(v2.in_degree);
         for (v1_connected_edge_id, (v1_connected_edge_end_v_id, v1_connected_edge_dir)) in
             v1_connected_edges_iter
@@ -914,7 +916,7 @@ impl Pattern {
 impl Pattern {
     /// Get all the vertices(id) with the same vertex label and vertex index
     /// These vertices are equivalent in the Pattern
-    fn get_equivalent_vertices(&self, v_label: LabelID, v_index: Index) -> Vec<ID> {
+    fn get_equivalent_vertices(&self, v_label: LabelId, v_index: Index) -> Vec<ID> {
         let mut equivalent_vertices = Vec::new();
         if let Some(vs_with_same_label) = self.vertex_label_map.get(&v_label) {
             for v_id in vs_with_same_label {
@@ -1111,9 +1113,9 @@ impl Pattern {
 mod tests {
     use super::Direction;
     use super::Pattern;
-    use crate::codec::*;
-    use crate::test_cases::*;
-    use crate::ID;
+    use crate::catalogue::codec::*;
+    use crate::catalogue::test_cases::*;
+    use crate::catalogue::ID;
 
     /// Test whether the structure of pattern_case1 is the same as our previous description
     #[test]

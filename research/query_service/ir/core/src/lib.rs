@@ -19,6 +19,7 @@ pub use crate::plan::ffi::*;
 
 pub mod error;
 pub mod plan;
+pub mod catalogue;
 
 #[macro_use]
 extern crate lazy_static;

@@ -15,22 +15,22 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ir_core::plan::meta::Schema;
+use crate::plan::meta::Schema;
 
-use crate::{Direction, LabelID};
+use crate::catalogue::{Direction, LabelId};
 
 #[derive(Debug)]
 pub struct PatternMeta {
     /// Key: vertex label name, Value: vertex labal id
-    vertex_map: BTreeMap<String, LabelID>,
+    vertex_map: BTreeMap<String, LabelId>,
     /// Key: edge label name, Value: edge label id
-    edge_map: BTreeMap<String, LabelID>,
+    edge_map: BTreeMap<String, LabelId>,
     /// Key: vertex label id, Value: BTreeSet<(edge label id, direction)>
-    vertex_connect_edges: BTreeMap<LabelID, BTreeSet<(LabelID, Direction)>>,
+    vertex_connect_edges: BTreeMap<LabelId, BTreeSet<(LabelId, Direction)>>,
     /// Key: edge label id, Value: Vec<(src vertex label id, dst vertex label id)>
-    edge_connect_vertices: BTreeMap<LabelID, Vec<(LabelID, LabelID)>>,
+    edge_connect_vertices: BTreeMap<LabelId, Vec<(LabelId, LabelId)>>,
     /// Key: (src vertex label id, dst vertex label id), Value: Vec<(edge label id, direction)>
-    vertex_vertex_edges: BTreeMap<(LabelID, LabelID), Vec<(LabelID, Direction)>>,
+    vertex_vertex_edges: BTreeMap<(LabelId, LabelId), Vec<(LabelId, Direction)>>,
 }
 
 /// Initializer of PatternMeta
@@ -119,30 +119,30 @@ impl PatternMeta {
             .collect()
     }
 
-    pub fn get_all_vertex_label_ids(&self) -> Vec<LabelID> {
+    pub fn get_all_vertex_label_ids(&self) -> Vec<LabelId> {
         self.vertex_map
             .iter()
             .map(|(_, vertex_id)| *vertex_id)
             .collect()
     }
 
-    pub fn get_all_edge_label_ids(&self) -> Vec<LabelID> {
+    pub fn get_all_edge_label_ids(&self) -> Vec<LabelId> {
         self.edge_map
             .iter()
             .map(|(_, edge_id)| *edge_id)
             .collect()
     }
 
-    pub fn get_vertex_id(&self, label_name: &str) -> Option<LabelID> {
+    pub fn get_vertex_id(&self, label_name: &str) -> Option<LabelId> {
         self.vertex_map.get(label_name).cloned()
     }
 
-    pub fn get_edge_id(&self, label_name: &str) -> Option<LabelID> {
+    pub fn get_edge_id(&self, label_name: &str) -> Option<LabelId> {
         self.edge_map.get(label_name).cloned()
     }
 
     /// Given a soruce vertex label, find all its neighboring connect vertices(label)
-    pub fn get_connect_vertices_of_v(&self, src_v_label: LabelID) -> BTreeSet<LabelID> {
+    pub fn get_connect_vertices_of_v(&self, src_v_label: LabelId) -> BTreeSet<LabelId> {
         match self.vertex_connect_edges.get(&src_v_label) {
             Some(connections) => {
                 let mut connect_vertices = BTreeSet::new();
@@ -165,7 +165,7 @@ impl PatternMeta {
     }
 
     /// Given a source vertex label, find all its neiboring connected edges(label)
-    pub fn get_connect_edges_of_v(&self, src_v_label: LabelID) -> Vec<(LabelID, Direction)> {
+    pub fn get_connect_edges_of_v(&self, src_v_label: LabelId) -> Vec<(LabelId, Direction)> {
         match self.vertex_connect_edges.get(&src_v_label) {
             Some(connections) => {
                 let mut connections_vec = Vec::new();
@@ -179,7 +179,7 @@ impl PatternMeta {
     }
 
     /// Given a source edge label, find all possible pairs of its (src vertex label, dst vertex label)
-    pub fn get_connect_vertices_of_e(&self, src_e_label: LabelID) -> Vec<(LabelID, LabelID)> {
+    pub fn get_connect_vertices_of_e(&self, src_e_label: LabelId) -> Vec<(LabelId, LabelId)> {
         match self.edge_connect_vertices.get(&src_e_label) {
             Some(connections) => connections.clone(),
             None => Vec::new(),
@@ -188,8 +188,8 @@ impl PatternMeta {
 
     /// Given a src vertex label and a dst vertex label, find all possible edges(label) between them with directions
     pub fn get_edges_between_vertices(
-        &self, src_v_label: LabelID, dst_v_label: LabelID,
-    ) -> Vec<(LabelID, Direction)> {
+        &self, src_v_label: LabelId, dst_v_label: LabelId,
+    ) -> Vec<(LabelId, Direction)> {
         match self
             .vertex_vertex_edges
             .get(&(src_v_label, dst_v_label))
@@ -205,8 +205,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::PatternMeta;
-    use crate::test_cases::*;
-    use crate::Direction;
+    use crate::catalogue::test_cases::*;
+    use crate::catalogue::Direction;
 
     /// Test whether the pattern meta from the modern graph obeys our expectation
     #[test]

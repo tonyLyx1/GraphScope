@@ -4,8 +4,7 @@ members = [
     "core",
     "graph_proxy",
     "integrated",
-    "runtime",
-    "catalogue"
+    "runtime"
 ]
 
 [profile.dev]

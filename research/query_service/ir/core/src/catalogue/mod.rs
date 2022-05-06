@@ -1,5 +1,5 @@
 type ID = i32;
-type LabelID = i32;
+type LabelId = i32;
 type Index = i32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,17 +27,17 @@ pub(crate) mod test_cases {
     use std::collections::HashMap;
     use std::fs::File;
 
-    use ir_core::{plan::meta::Schema, JsonIO};
+    use crate::{plan::meta::Schema, JsonIO};
     use rand::rngs::StdRng;
     use rand::seq::SliceRandom;
     use rand::Rng;
     use rand::SeedableRng;
 
-    use super::{LabelID, ID};
-    use crate::extend_step::*;
-    use crate::pattern::*;
-    use crate::pattern_meta::*;
-    use crate::Direction;
+    use super::{LabelId, ID};
+    use crate::catalogue::extend_step::*;
+    use crate::catalogue::pattern::*;
+    use crate::catalogue::pattern_meta::*;
+    use crate::catalogue::Direction;
 
     /// The pattern looks like:
     /// A <-> A
@@ -280,11 +280,11 @@ pub(crate) mod test_cases {
     }
 
     /// Test Cases for Index Ranking
-    fn gen_edge_label_map(edges: Vec<String>) -> HashMap<String, LabelID> {
+    fn gen_edge_label_map(edges: Vec<String>) -> HashMap<String, LabelId> {
         let mut rng = StdRng::from_seed([0; 32]);
-        let mut values: Vec<LabelID> = (0..=255).collect();
+        let mut values: Vec<LabelId> = (0..=255).collect();
         values.shuffle(&mut rng);
-        let mut edge_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut edge_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut index = 0;
         for edge in edges {
             if index >= values.len() {
@@ -303,9 +303,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case1() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_id_map.insert(String::from("A0"), gen_id());
@@ -322,9 +322,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case2() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_id_map.insert(String::from("A0"), gen_id());
@@ -351,9 +351,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case3() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -382,9 +382,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case4() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -421,9 +421,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case5() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -460,9 +460,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case6() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B"), String::from("B->A")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -507,9 +507,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case7() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -554,9 +554,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case8() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -602,9 +602,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case9() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B"), String::from("B->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -658,9 +658,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case10() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B"), String::from("B->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -722,9 +722,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case11() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B"), String::from("B->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -795,9 +795,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case12() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B"), String::from("B->B")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -877,9 +877,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case13() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> = gen_edge_label_map(vec![
+        let edge_label_map: HashMap<String, LabelId> = gen_edge_label_map(vec![
             String::from("A->A"),
             String::from("A->B"),
             String::from("B->B"),
@@ -963,9 +963,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case14() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> = gen_edge_label_map(vec![
+        let edge_label_map: HashMap<String, LabelId> = gen_edge_label_map(vec![
             String::from("A->A"),
             String::from("A->B"),
             String::from("B->B"),
@@ -1059,9 +1059,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case15() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B"), String::from("B->C")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_label_map.insert(String::from("B"), 2);
@@ -1153,9 +1153,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case16() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> = gen_edge_label_map(vec![
+        let edge_label_map: HashMap<String, LabelId> = gen_edge_label_map(vec![
             String::from("A->A"),
             String::from("A->B"),
             String::from("B->C"),
@@ -1261,9 +1261,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case17() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B"), String::from("B->C")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_id_map.insert(String::from("A0"), gen_id());
@@ -1318,9 +1318,9 @@ pub(crate) mod test_cases {
     }
 
     pub fn build_pattern_index_ranking_case18() -> (Pattern, HashMap<String, ID>) {
-        let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
+        let mut vertex_label_map: HashMap<String, LabelId> = HashMap::new();
         let mut vertex_id_map: HashMap<String, ID> = HashMap::new();
-        let edge_label_map: HashMap<String, LabelID> =
+        let edge_label_map: HashMap<String, LabelId> =
             gen_edge_label_map(vec![String::from("A->A"), String::from("A->B"), String::from("B->C")]);
         vertex_label_map.insert(String::from("A"), 1);
         vertex_id_map.insert(String::from("A0"), gen_id());
