@@ -789,7 +789,7 @@ impl Pattern {
 
     fn get_same_index_vertex_groups(&mut self) -> Vec<Vec<ID>> {
         let mut same_index_vertex_groups: Vec<Vec<ID>> = Vec::new();
-        for (v_label, vertex_set) in self.get_vertex_label_map().iter() {
+        for (_, vertex_set) in self.get_vertex_label_map().iter() {
             let mut vertex_vec: Vec<ID> = Vec::new();
             // Push all the vertices with the same label into a vector
             for v_id in vertex_set.iter() {
@@ -1103,17 +1103,8 @@ impl Pattern {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, HashMap};
-    use std::fs::File;
-
-    use ir_core::{plan::meta::Schema, JsonIO};
-    use rand::Rng;
-
     use super::Direction;
     use super::Pattern;
-    use super::PatternEdge;
-    use super::PatternMeta;
-    use super::{ExtendEdge, ExtendStep};
     use crate::codec::*;
     use crate::ID;
     use crate::test_cases::*;

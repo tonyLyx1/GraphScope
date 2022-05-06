@@ -24,19 +24,20 @@ pub mod pattern_meta;
 
 #[cfg(test)]
 pub(crate) mod test_cases {
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::HashMap;
     use std::fs::File;
 
     use ir_core::{plan::meta::Schema, JsonIO};
     use rand::Rng;
-	use rand::thread_rng;
 	use rand::seq::SliceRandom;
+    use rand::rngs::StdRng;
+    use rand::SeedableRng;
 
     use crate::Direction;
     use crate::pattern::*;
     use crate::pattern_meta::*;
     use crate::extend_step::*;
-	use super::{ID, LabelID, Index};
+	use super::{ID, LabelID};
 
     /// The pattern looks like:
     /// A <-> A
@@ -149,6 +150,40 @@ pub(crate) mod test_cases {
         Pattern::from(pattern_vec)
     }
 
+    /// The pattern looks like:
+    /// B <- A -> C
+    /// Vertex Label Map:
+    /// A: 1, B: 2, C: 3
+    /// Edge Label Map:
+    /// A->B: 1, A->C: 2 
+    pub fn build_pattern_case6() -> Pattern {
+        let pattern_edge1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
+        let pattern_edge2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
+        let pattern_vec = vec![pattern_edge1, pattern_edge2];
+        Pattern::from(pattern_vec)
+    }
+
+    /// The pattern looks like:
+    ///         A
+    ///        /|\
+    ///       / D \
+    ///      //  \ \
+    ///     B  ->  C
+    /// Vertex Label Map:
+    /// A: 1, B: 2, C: 3, D: 4
+    /// Edge Label Map:
+    /// A->B: 0, A->C: 1, B->C: 2, A->D: 3, B->D: 4, D->C: 5 
+    pub fn build_pattern_case7() -> Pattern {
+        let edge_1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
+        let edge_2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
+        let edge_3 = PatternEdge::new(2, 3, 1, 2, 2, 3);
+        let edge_4 = PatternEdge::new(3, 4, 0, 3, 1, 4);
+        let edge_5 = PatternEdge::new(4, 5, 1, 3, 2, 4);
+        let edge_6 = PatternEdge::new(5, 6, 3, 2, 4, 3);
+        let pattern_edges = vec![edge_1, edge_2, edge_3, edge_4, edge_5, edge_6];
+        Pattern::from(pattern_edges)
+    }
+
     /// The extend step looks like:
     ///         B
     ///       /   \
@@ -164,12 +199,33 @@ pub(crate) mod test_cases {
         ExtendStep::from((1, vec![extend_edge1, extend_edge2]))
     }
 
-    pub fn get_modern_pattern_meta() -> PatternMeta {
+    /// The extend step looks like:
+    ///       C 
+    ///    /  |   \
+    ///  A(0) A(1) B
+    /// Vertex Label Map:
+    /// A: 1, B: 2, C: 3
+    /// Edge Label Map: 
+    /// A->C: 1, B->C: 2
+    /// The left A has index 0 and the middle A has index 1
+    pub fn build_extend_step_case2() -> ExtendStep {
+        let target_v_label = 3;
+        let extend_edge_1 = ExtendEdge::new(1, 0, 1, Direction::Out);
+        let extend_edge_2 = ExtendEdge::new(1, 1, 1, Direction::In);
+        let extend_edge_3 = ExtendEdge::new(2, 0, 2, Direction::Out);
+        ExtendStep::from((target_v_label, vec![extend_edge_1, extend_edge_2, extend_edge_3]))
+    }
+
+    pub fn read_modern_graph_schema() -> Schema {
         let modern_schema_file = match File::open("resource/modern_schema.json") {
             Ok(file) => file,
             Err(_) => File::open("catalogue/resource/modern_schema.json").unwrap(),
         };
-        let modern_schema = Schema::from_json(modern_schema_file).unwrap();
+        Schema::from_json(modern_schema_file).unwrap()
+    }
+
+    pub fn get_modern_pattern_meta() -> PatternMeta {
+        let modern_schema = read_modern_graph_schema();
         PatternMeta::from(modern_schema)
     }
 
@@ -198,12 +254,16 @@ pub(crate) mod test_cases {
         Pattern::from(vec![pattern_edge])
     }
 
-    pub fn get_ldbc_pattern_meta() -> PatternMeta {
+    pub fn read_ldbc_graph_schema() -> Schema {
         let ldbc_schema_file = match File::open("resource/ldbc_schema.json") {
             Ok(file) => file,
             Err(_) => File::open("catalogue/resource/ldbc_schema.json").unwrap(),
         };
-        let ldbc_schema = Schema::from_json(ldbc_schema_file).unwrap();
+        Schema::from_json(ldbc_schema_file).unwrap()
+    }
+
+    pub fn get_ldbc_pattern_meta() -> PatternMeta {
+        let ldbc_schema = read_ldbc_graph_schema();
         PatternMeta::from(ldbc_schema)
     }
 
@@ -221,7 +281,7 @@ pub(crate) mod test_cases {
 
     /// Test Cases for Index Ranking
     fn gen_edge_label_map(edges: Vec<String>) -> HashMap<String, LabelID> {
-        let mut rng = rand::thread_rng();
+        let mut rng = StdRng::from_seed([0;32]);
 		let mut values: Vec<LabelID> = (0..=255).collect();
 		values.shuffle(&mut rng);
         let mut edge_label_map: HashMap<String, LabelID> = HashMap::new();
@@ -299,7 +359,7 @@ pub(crate) mod test_cases {
         vertex_label_map.insert(String::from("B"), 2);
         vertex_id_map.insert(String::from("A0"), gen_id());
         vertex_id_map.insert(String::from("A1"), gen_id());
-        vertex_id_map.insert(String::from("B0"), gen_id());
+        vertex_id_map.insert(String::from("B0"), gen_id()); 
         let pattern_vec = vec![
             PatternEdge::new(
                 gen_id(),

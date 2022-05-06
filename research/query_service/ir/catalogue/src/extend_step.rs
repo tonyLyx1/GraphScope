@@ -144,13 +144,7 @@ pub fn get_subsets<T: Clone>(origin_vec: Vec<T>) -> Vec<Vec<T>> {
 mod tests {
     use crate::extend_step::*;
     use crate::Direction;
-
-    fn build_extend_step_case1() -> ExtendStep {
-        let extend_edge0 =
-            ExtendEdge { start_v_label: 1, start_v_index: 0, edge_label: 1, dir: Direction::Out };
-        let extend_edge1 = extend_edge0.clone();
-        ExtendStep::from((1, vec![extend_edge0, extend_edge1]))
-    }
+    use crate::test_cases::*;
 
     #[test]
     fn test_extend_step_case1_structure() {
@@ -160,18 +154,18 @@ mod tests {
         assert_eq!(
             extend_step1
                 .extend_edges
-                .get(&(1, 0))
+                .get(&(0, 0))
                 .unwrap()
                 .len(),
             2
         );
         assert_eq!(
-            extend_step1.extend_edges.get(&(1, 0)).unwrap()[0],
-            ExtendEdge { start_v_label: 1, start_v_index: 0, edge_label: 1, dir: Direction::Out }
+            extend_step1.extend_edges.get(&(0, 0)).unwrap()[0],
+            ExtendEdge { start_v_label: 0, start_v_index: 0, edge_label: 1, dir: Direction::Out }
         );
         assert_eq!(
-            extend_step1.extend_edges.get(&(1, 0)).unwrap()[1],
-            ExtendEdge { start_v_label: 1, start_v_index: 0, edge_label: 1, dir: Direction::Out }
+            extend_step1.extend_edges.get(&(0, 0)).unwrap()[1],
+            ExtendEdge { start_v_label: 0, start_v_index: 0, edge_label: 1, dir: Direction::Out }
         );
     }
 }

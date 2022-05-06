@@ -202,28 +202,10 @@ impl PatternMeta {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, fs::File};
-
-    use ir_core::{plan::meta::Schema, JsonIO};
-
+    use std::collections::BTreeMap;
     use super::PatternMeta;
     use crate::Direction;
-
-    fn read_modern_graph_schema() -> Schema {
-        let modern_schema_file = match File::open("resource/modern_schema.json") {
-            Ok(file) => file,
-            Err(_) => File::open("catalogue/resource/modern_schema.json").unwrap(),
-        };
-        Schema::from_json(modern_schema_file).unwrap()
-    }
-
-    fn read_ldbc_graph_schema() -> Schema {
-        let ldbc_schema_file = match File::open("resource/ldbc_schema.json") {
-            Ok(file) => file,
-            Err(_) => File::open("catalogue/resource/ldbc_schema.json").unwrap(),
-        };
-        Schema::from_json(ldbc_schema_file).unwrap()
-    }
+    use crate::test_cases::*;
 
     /// Test whether the pattern meta from the modern graph obeys our expectation
     #[test]
