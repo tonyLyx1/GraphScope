@@ -203,9 +203,10 @@ impl PatternMeta {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+
     use super::PatternMeta;
-    use crate::Direction;
     use crate::test_cases::*;
+    use crate::Direction;
 
     /// Test whether the pattern meta from the modern graph obeys our expectation
     #[test]

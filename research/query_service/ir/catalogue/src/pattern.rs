@@ -22,6 +22,8 @@ use crate::extend_step::{ExtendEdge, ExtendStep};
 use crate::pattern_meta::PatternMeta;
 use crate::{Direction, Index, LabelID, ID};
 
+// use ir_common::generated::algebra as pb;
+
 #[derive(Debug, Clone)]
 pub struct PatternVertex {
     id: ID,
@@ -286,6 +288,23 @@ impl From<Vec<PatternEdge>> for Pattern {
     }
 }
 
+// impl TryFrom<(&pb::Pattern, &PatternMeta)> for Pattern {
+//     type Error = ();
+//     fn try_from((pattern_message, pattern_meta):(&pb::Pattern, &PatternMeta)) -> Result<Self, ()> {
+//         let mut assign_vertex_id = 0;
+//         let mut assign_edge_id = 0;
+//         let mut pattern_edges = Vec::new();
+//         let mut tag_id_map: HashMap<String, ID> = HashMap::new();
+//         for sentence in &pattern_message.sentences {
+//             if sentence.start == None {
+//                 return Err(());
+//             }
+
+//         }
+//         Ok(Pattern::from(pattern_edges))
+//     }
+// }
+
 /// Methods to access the fields of a Pattern or get some info from Pattern
 impl Pattern {
     /// Get Edges References
@@ -414,33 +433,21 @@ impl Pattern {
     }
 }
 
-/// Methods for Pattern Encoding and Decoding
-/// Include PatternVertex Reordering and PatternEdge Reordering
+/// Methods for PatternEdge Reordering inside a Pattern
 impl Pattern {
-    fn reorder_label_vertices(&mut self, _v_label: LabelID) {}
-
-    pub fn reorder_vertices(&mut self) {
-        let mut v_labels = Vec::with_capacity(self.vertex_label_map.len());
-        for (v_label, _) in &self.vertex_label_map {
-            v_labels.push(*v_label)
-        }
-        for v_label in v_labels {
-            self.reorder_label_vertices(v_label)
-        }
-    }
-
     /// Get a vector of ordered edges's indexes of a Pattern
     /// The comparison is based on the `cmp_edges` method above to get the Order
     pub fn get_ordered_edges(&self) -> Vec<ID> {
-        let mut ordered_edges = Vec::new();
-        for (&edge, _) in &self.edges {
-            ordered_edges.push(edge);
-        }
+        let mut ordered_edges: Vec<ID> = self
+            .edges
+            .iter()
+            .map(|(edge_id, _)| *edge_id)
+            .collect();
         ordered_edges.sort_by(|e1_id, e2_id| self.cmp_edges(*e1_id, *e2_id));
         ordered_edges
     }
 
-    /// ### Get the Order of two PatternEdges in a Pattern
+    /// Get the Order of two PatternEdges in a Pattern
     /// Vertex Indices are taken into consideration
     fn cmp_edges(&self, e1_id: ID, e2_id: ID) -> Ordering {
         if e1_id == e2_id {
@@ -1040,7 +1047,6 @@ impl Pattern {
         new_pattern
             .vertices
             .insert(new_pattern_vertex.id, new_pattern_vertex);
-        new_pattern.reorder_label_vertices(target_v_label);
         Some(new_pattern)
     }
 
@@ -1106,8 +1112,8 @@ mod tests {
     use super::Direction;
     use super::Pattern;
     use crate::codec::*;
-    use crate::ID;
     use crate::test_cases::*;
+    use crate::ID;
 
     /// Test whether the structure of pattern_case1 is the same as our previous description
     #[test]

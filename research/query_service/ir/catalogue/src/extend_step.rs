@@ -143,8 +143,8 @@ pub fn get_subsets<T: Clone>(origin_vec: Vec<T>) -> Vec<Vec<T>> {
 #[cfg(test)]
 mod tests {
     use crate::extend_step::*;
-    use crate::Direction;
     use crate::test_cases::*;
+    use crate::Direction;
 
     #[test]
     fn test_extend_step_case1_structure() {

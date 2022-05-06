@@ -28,16 +28,16 @@ pub(crate) mod test_cases {
     use std::fs::File;
 
     use ir_core::{plan::meta::Schema, JsonIO};
-    use rand::Rng;
-	use rand::seq::SliceRandom;
     use rand::rngs::StdRng;
+    use rand::seq::SliceRandom;
+    use rand::Rng;
     use rand::SeedableRng;
 
-    use crate::Direction;
+    use super::{LabelID, ID};
+    use crate::extend_step::*;
     use crate::pattern::*;
     use crate::pattern_meta::*;
-    use crate::extend_step::*;
-	use super::{ID, LabelID};
+    use crate::Direction;
 
     /// The pattern looks like:
     /// A <-> A
@@ -47,10 +47,7 @@ pub(crate) mod test_cases {
     /// The left A has id 0
     /// The right A has id 1
     pub fn build_pattern_case1() -> Pattern {
-        let pattern_vec = vec![
-            PatternEdge::new(0, 0, 0, 1, 0, 0),
-            PatternEdge::new(1, 0, 1, 0, 0, 0)
-        ];
+        let pattern_vec = vec![PatternEdge::new(0, 0, 0, 1, 0, 0), PatternEdge::new(1, 0, 1, 0, 0, 0)];
         Pattern::from(pattern_vec)
     }
 
@@ -70,7 +67,7 @@ pub(crate) mod test_cases {
             PatternEdge::new(0, 0, 0, 1, 0, 0),
             PatternEdge::new(1, 0, 1, 0, 0, 0),
             PatternEdge::new(2, 1, 0, 2, 0, 1),
-            PatternEdge::new(3, 1, 1, 2, 0, 1)
+            PatternEdge::new(3, 1, 1, 2, 0, 1),
         ];
         Pattern::from(pattern_vec)
     }
@@ -89,7 +86,7 @@ pub(crate) mod test_cases {
             PatternEdge::new(gen_id(), 0, 0, 1, 0, 0),
             PatternEdge::new(gen_id(), 1, 0, 2, 0, 1),
             PatternEdge::new(gen_id(), 1, 1, 3, 0, 1),
-            PatternEdge::new(gen_id(), 2, 2, 3, 1, 1)
+            PatternEdge::new(gen_id(), 2, 2, 3, 1, 1),
         ];
         Pattern::from(pattern_vec)
     }
@@ -109,7 +106,7 @@ pub(crate) mod test_cases {
             PatternEdge::new(gen_id(), 0, 1, 0, 0, 0),
             PatternEdge::new(gen_id(), 1, 0, 2, 0, 1),
             PatternEdge::new(gen_id(), 1, 1, 3, 0, 1),
-            PatternEdge::new(gen_id(), 2, 2, 3, 1, 1)
+            PatternEdge::new(gen_id(), 2, 2, 3, 1, 1),
         ];
         Pattern::from(pattern_vec)
     }
@@ -135,7 +132,7 @@ pub(crate) mod test_cases {
         let id_vec_c: Vec<ID> = vec![1, 2, 3];
         let id_vec_d: Vec<ID> = vec![1000];
         let pattern_vec = vec![
-            PatternEdge::new(gen_id(), 15, id_vec_c[0], id_vec_b[1], label_c, label_b), 
+            PatternEdge::new(gen_id(), 15, id_vec_c[0], id_vec_b[1], label_c, label_b),
             PatternEdge::new(gen_id(), 30, id_vec_a[0], id_vec_b[1], label_a, label_b),
             PatternEdge::new(gen_id(), 15, id_vec_c[2], id_vec_b[1], label_c, label_b),
             PatternEdge::new(gen_id(), 30, id_vec_a[0], id_vec_b[0], label_a, label_b),
@@ -145,7 +142,7 @@ pub(crate) mod test_cases {
             PatternEdge::new(gen_id(), 20, id_vec_a[1], id_vec_a[2], label_a, label_a),
             PatternEdge::new(gen_id(), 20, id_vec_a[2], id_vec_a[1], label_a, label_a),
             PatternEdge::new(gen_id(), 15, id_vec_c[1], id_vec_b[2], label_c, label_b),
-            PatternEdge::new(gen_id(), 5, id_vec_d[0], id_vec_c[1], label_d, label_c)
+            PatternEdge::new(gen_id(), 5, id_vec_d[0], id_vec_c[1], label_d, label_c),
         ];
         Pattern::from(pattern_vec)
     }
@@ -155,7 +152,7 @@ pub(crate) mod test_cases {
     /// Vertex Label Map:
     /// A: 1, B: 2, C: 3
     /// Edge Label Map:
-    /// A->B: 1, A->C: 2 
+    /// A->B: 1, A->C: 2
     pub fn build_pattern_case6() -> Pattern {
         let pattern_edge1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
         let pattern_edge2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
@@ -172,7 +169,7 @@ pub(crate) mod test_cases {
     /// Vertex Label Map:
     /// A: 1, B: 2, C: 3, D: 4
     /// Edge Label Map:
-    /// A->B: 0, A->C: 1, B->C: 2, A->D: 3, B->D: 4, D->C: 5 
+    /// A->B: 0, A->C: 1, B->C: 2, A->D: 3, B->D: 4, D->C: 5
     pub fn build_pattern_case7() -> Pattern {
         let edge_1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
         let edge_2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
@@ -200,12 +197,12 @@ pub(crate) mod test_cases {
     }
 
     /// The extend step looks like:
-    ///       C 
+    ///       C
     ///    /  |   \
     ///  A(0) A(1) B
     /// Vertex Label Map:
     /// A: 1, B: 2, C: 3
-    /// Edge Label Map: 
+    /// Edge Label Map:
     /// A->C: 1, B->C: 2
     /// The left A has index 0 and the middle A has index 1
     pub fn build_extend_step_case2() -> ExtendStep {
@@ -244,7 +241,10 @@ pub(crate) mod test_cases {
     pub fn build_modern_pattern_case3() -> Pattern {
         let pattern_edge = PatternEdge::new(0, 0, 0, 1, 0, 0);
         let mut pattern = Pattern::from(vec![pattern_edge]);
-        pattern.get_vertex_mut_from_id(1).unwrap().set_index(1);
+        pattern
+            .get_vertex_mut_from_id(1)
+            .unwrap()
+            .set_index(1);
         pattern
     }
 
@@ -281,26 +281,26 @@ pub(crate) mod test_cases {
 
     /// Test Cases for Index Ranking
     fn gen_edge_label_map(edges: Vec<String>) -> HashMap<String, LabelID> {
-        let mut rng = StdRng::from_seed([0;32]);
-		let mut values: Vec<LabelID> = (0..=255).collect();
-		values.shuffle(&mut rng);
+        let mut rng = StdRng::from_seed([0; 32]);
+        let mut values: Vec<LabelID> = (0..=255).collect();
+        values.shuffle(&mut rng);
         let mut edge_label_map: HashMap<String, LabelID> = HashMap::new();
         let mut index = 0;
-		for edge in edges {
-			if index >= values.len() {
-				panic!("Error in gen_edge_label_map: index of out of scope");
-			}
+        for edge in edges {
+            if index >= values.len() {
+                panic!("Error in gen_edge_label_map: index of out of scope");
+            }
             edge_label_map.insert(edge, values[index]);
-			index += 1;
+            index += 1;
         }
 
         edge_label_map
     }
 
-	fn gen_id() -> ID {
-		let mut rng = rand::thread_rng();
-		(rng.gen::<ID>()).abs()
-	}
+    fn gen_id() -> ID {
+        let mut rng = rand::thread_rng();
+        (rng.gen::<ID>()).abs()
+    }
 
     pub fn build_pattern_index_ranking_case1() -> (Pattern, HashMap<String, ID>) {
         let mut vertex_label_map: HashMap<String, LabelID> = HashMap::new();
@@ -359,7 +359,7 @@ pub(crate) mod test_cases {
         vertex_label_map.insert(String::from("B"), 2);
         vertex_id_map.insert(String::from("A0"), gen_id());
         vertex_id_map.insert(String::from("A1"), gen_id());
-        vertex_id_map.insert(String::from("B0"), gen_id()); 
+        vertex_id_map.insert(String::from("B0"), gen_id());
         let pattern_vec = vec![
             PatternEdge::new(
                 gen_id(),

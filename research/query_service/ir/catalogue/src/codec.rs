@@ -324,7 +324,7 @@ impl EncodeUnit {
             let edge_encode_unit = EncodeUnit::from_pattern_edge(pattern, edge, encoder);
             pattern_encode_unit.extend_by_another_unit(&edge_encode_unit);
         }
-            println!("");
+        println!("");
         pattern_encode_unit
     }
 
@@ -332,7 +332,7 @@ impl EncodeUnit {
         let start_v_label = extend_edge.get_start_vertex_label();
         let start_v_index = extend_edge.get_start_vertex_index();
         let edge_label = extend_edge.get_edge_label();
-        let dir = extend_edge.get_direction(); 
+        let dir = extend_edge.get_direction();
 
         let vertex_label_bit_num = encoder.get_vertex_label_bit_num();
         let vertex_index_bit_num = encoder.get_vertex_index_bit_num();
@@ -980,7 +980,7 @@ mod tests {
     #[test]
     fn test_encode_decode_pattern_case1_ascii_string() {
         let pattern = build_pattern_case1();
-        let encoder = Encoder::init_by_pattern(&pattern, 2);        
+        let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
         let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
@@ -1000,7 +1000,7 @@ mod tests {
     #[test]
     fn test_encode_decode_pattern_case2_ascii_string() {
         let pattern = build_pattern_case2();
-        let encoder = Encoder::init_by_pattern(&pattern, 2);        
+        let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
         let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
@@ -1020,7 +1020,7 @@ mod tests {
     #[test]
     fn test_encode_decode_pattern_case3_ascii_string() {
         let pattern = build_pattern_case3();
-        let encoder = Encoder::init_by_pattern(&pattern, 2);        
+        let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
         let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
@@ -1040,7 +1040,7 @@ mod tests {
     #[test]
     fn test_encode_decode_pattern_case4_ascii_string() {
         let pattern = build_pattern_case4();
-        let encoder = Encoder::init_by_pattern(&pattern, 2);        
+        let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
         let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
@@ -1060,7 +1060,7 @@ mod tests {
     #[test]
     fn test_encode_decode_pattern_case5_ascii_string() {
         let pattern = build_pattern_case5();
-        let encoder = Encoder::init_by_pattern(&pattern, 2);        
+        let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
         let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
@@ -1080,7 +1080,7 @@ mod tests {
     #[test]
     fn test_encode_decode_pattern_case6_ascii_string() {
         let pattern = build_pattern_case6();
-        let encoder = Encoder::init_by_pattern(&pattern, 2);        
+        let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
         let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
@@ -1100,7 +1100,7 @@ mod tests {
     #[test]
     fn test_encode_decode_pattern_case7_ascii_string() {
         let pattern = build_pattern_case7();
-        let encoder = Encoder::init_by_pattern(&pattern, 2);        
+        let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
         let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
