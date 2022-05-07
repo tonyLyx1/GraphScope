@@ -15,6 +15,7 @@
 
 use std::cmp::{max, Ordering};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+// use std::convert::TryFrom;
 
 use fast_math::log2;
 
@@ -23,6 +24,7 @@ use crate::catalogue::pattern_meta::PatternMeta;
 use crate::catalogue::{Direction, Index, LabelId, ID};
 
 // use ir_common::generated::algebra as pb;
+// use ir_common::generated::common::
 
 #[derive(Debug, Clone)]
 pub struct PatternVertex {
@@ -296,9 +298,18 @@ impl From<Vec<PatternEdge>> for Pattern {
 //         let mut pattern_edges = Vec::new();
 //         let mut tag_id_map: HashMap<String, ID> = HashMap::new();
 //         for sentence in &pattern_message.sentences {
-//             if sentence.start == None || sentence.binders.len() == 0 {
+//             if sentence.binders.is_empty() {
 //                 return Err(());
 //             }
+//             let start_tag = sentence
+//                 .start
+//                 .as_ref()
+//                 .ok_or(())?
+//                 .item
+//                 .as_ref()
+//                 .ok_or(())?;
+//             if 
+            
 //             for binder in sentence.binders.iter() {
 
 //             }
