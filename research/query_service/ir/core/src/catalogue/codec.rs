@@ -22,7 +22,7 @@ use ascii::ToAsciiChar;
 use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
 use crate::catalogue::pattern::Pattern;
 use crate::catalogue::pattern::PatternEdge;
-use crate::catalogue::Direction;
+use crate::catalogue::PatternDirection;
 
 pub trait Cipher<T> {
     fn encode_to(&self, encoder: &Encoder) -> T;
@@ -589,7 +589,7 @@ impl DecodeUnit {
         }
         let mut extend_edges = Vec::with_capacity(decode_vec.len() / 4);
         for i in (0..decode_vec.len() - 4).step_by(4) {
-            let dir = if decode_vec[i] == 0 { Direction::Out } else { Direction::In };
+            let dir = if decode_vec[i] == 0 { PatternDirection::Out } else { PatternDirection::In };
             let edge_label = decode_vec[i + 1];
             let start_v_index = decode_vec[i + 2];
             let start_v_label = decode_vec[i + 3];

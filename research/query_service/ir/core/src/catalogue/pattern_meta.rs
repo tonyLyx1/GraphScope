@@ -17,20 +17,20 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::plan::meta::Schema;
 
-use crate::catalogue::{Direction, LabelId};
+use crate::catalogue::{PatternDirection, PatternLabelId};
 
 #[derive(Debug)]
 pub struct PatternMeta {
     /// Key: vertex label name, Value: vertex labal id
-    vertex_map: BTreeMap<String, LabelId>,
+    vertex_map: BTreeMap<String, PatternLabelId>,
     /// Key: edge label name, Value: edge label id
-    edge_map: BTreeMap<String, LabelId>,
+    edge_map: BTreeMap<String, PatternLabelId>,
     /// Key: vertex label id, Value: BTreeSet<(edge label id, direction)>
-    vertex_connect_edges: BTreeMap<LabelId, BTreeSet<(LabelId, Direction)>>,
+    vertex_connect_edges: BTreeMap<PatternLabelId, BTreeSet<(PatternLabelId, PatternDirection)>>,
     /// Key: edge label id, Value: Vec<(src vertex label id, dst vertex label id)>
-    edge_connect_vertices: BTreeMap<LabelId, Vec<(LabelId, LabelId)>>,
+    edge_connect_vertices: BTreeMap<PatternLabelId, Vec<(PatternLabelId, PatternLabelId)>>,
     /// Key: (src vertex label id, dst vertex label id), Value: Vec<(edge label id, direction)>
-    vertex_vertex_edges: BTreeMap<(LabelId, LabelId), Vec<(LabelId, Direction)>>,
+    vertex_vertex_edges: BTreeMap<(PatternLabelId, PatternLabelId), Vec<(PatternLabelId, PatternDirection)>>,
 }
 
 /// Initializer of PatternMeta
@@ -60,12 +60,12 @@ impl From<Schema> for PatternMeta {
                             .vertex_connect_edges
                             .entry(start_v_id)
                             .or_insert(BTreeSet::new())
-                            .insert((*id, Direction::Out));
+                            .insert((*id, PatternDirection::Out));
                         pattern_meta
                             .vertex_connect_edges
                             .entry(end_v_id)
                             .or_insert(BTreeSet::new())
-                            .insert((*id, Direction::In));
+                            .insert((*id, PatternDirection::In));
                         pattern_meta
                             .edge_connect_vertices
                             .entry(*id)
@@ -75,12 +75,12 @@ impl From<Schema> for PatternMeta {
                             .vertex_vertex_edges
                             .entry((start_v_id, end_v_id))
                             .or_insert(Vec::new())
-                            .push((*id, Direction::Out));
+                            .push((*id, PatternDirection::Out));
                         pattern_meta
                             .vertex_vertex_edges
                             .entry((end_v_id, start_v_id))
                             .or_insert(Vec::new())
-                            .push((*id, Direction::In));
+                            .push((*id, PatternDirection::In));
                     }
                 }
                 // Case that this is an vertex label
@@ -119,40 +119,40 @@ impl PatternMeta {
             .collect()
     }
 
-    pub fn get_all_vertex_label_ids(&self) -> Vec<LabelId> {
+    pub fn get_all_vertex_label_ids(&self) -> Vec<PatternLabelId> {
         self.vertex_map
             .iter()
             .map(|(_, vertex_id)| *vertex_id)
             .collect()
     }
 
-    pub fn get_all_edge_label_ids(&self) -> Vec<LabelId> {
+    pub fn get_all_edge_label_ids(&self) -> Vec<PatternLabelId> {
         self.edge_map
             .iter()
             .map(|(_, edge_id)| *edge_id)
             .collect()
     }
 
-    pub fn get_vertex_id(&self, label_name: &str) -> Option<LabelId> {
+    pub fn get_vertex_id(&self, label_name: &str) -> Option<PatternLabelId> {
         self.vertex_map.get(label_name).cloned()
     }
 
-    pub fn get_edge_id(&self, label_name: &str) -> Option<LabelId> {
+    pub fn get_edge_id(&self, label_name: &str) -> Option<PatternLabelId> {
         self.edge_map.get(label_name).cloned()
     }
 
     /// Given a soruce vertex label, find all its neighboring connect vertices(label)
-    pub fn get_connect_vertices_of_v(&self, src_v_label: LabelId) -> BTreeSet<LabelId> {
+    pub fn get_connect_vertices_of_v(&self, src_v_label: PatternLabelId) -> BTreeSet<PatternLabelId> {
         match self.vertex_connect_edges.get(&src_v_label) {
             Some(connections) => {
                 let mut connect_vertices = BTreeSet::new();
                 for (edge_id, dir) in connections {
                     let possible_edges = self.edge_connect_vertices.get(edge_id).unwrap();
                     for (start_v_id, end_v_id) in possible_edges {
-                        if *start_v_id == src_v_label && *dir == Direction::Out {
+                        if *start_v_id == src_v_label && *dir == PatternDirection::Out {
                             connect_vertices.insert(*end_v_id);
                         }
-                        if *end_v_id == src_v_label && *dir == Direction::In {
+                        if *end_v_id == src_v_label && *dir == PatternDirection::In {
                             connect_vertices.insert(*start_v_id);
                         }
                     }
@@ -165,7 +165,7 @@ impl PatternMeta {
     }
 
     /// Given a source vertex label, find all its neiboring connected edges(label)
-    pub fn get_connect_edges_of_v(&self, src_v_label: LabelId) -> Vec<(LabelId, Direction)> {
+    pub fn get_connect_edges_of_v(&self, src_v_label: PatternLabelId) -> Vec<(PatternLabelId, PatternDirection)> {
         match self.vertex_connect_edges.get(&src_v_label) {
             Some(connections) => {
                 let mut connections_vec = Vec::new();
@@ -179,7 +179,7 @@ impl PatternMeta {
     }
 
     /// Given a source edge label, find all possible pairs of its (src vertex label, dst vertex label)
-    pub fn get_connect_vertices_of_e(&self, src_e_label: LabelId) -> Vec<(LabelId, LabelId)> {
+    pub fn get_connect_vertices_of_e(&self, src_e_label: PatternLabelId) -> Vec<(PatternLabelId, PatternLabelId)> {
         match self.edge_connect_vertices.get(&src_e_label) {
             Some(connections) => connections.clone(),
             None => Vec::new(),
@@ -188,8 +188,8 @@ impl PatternMeta {
 
     /// Given a src vertex label and a dst vertex label, find all possible edges(label) between them with directions
     pub fn get_edges_between_vertices(
-        &self, src_v_label: LabelId, dst_v_label: LabelId,
-    ) -> Vec<(LabelId, Direction)> {
+        &self, src_v_label: PatternLabelId, dst_v_label: PatternLabelId,
+    ) -> Vec<(PatternLabelId, PatternDirection)> {
         match self
             .vertex_vertex_edges
             .get(&(src_v_label, dst_v_label))
@@ -206,7 +206,7 @@ mod tests {
 
     use super::PatternMeta;
     use crate::catalogue::test_cases::*;
-    use crate::catalogue::Direction;
+    use crate::catalogue::PatternDirection;
 
     /// Test whether the pattern meta from the modern graph obeys our expectation
     #[test]
@@ -302,11 +302,11 @@ mod tests {
                 vertex_vertex_edges
                     .entry((start_v_id, end_v_id))
                     .or_insert(Vec::new())
-                    .push((edge_id, Direction::Out));
+                    .push((edge_id, PatternDirection::Out));
                 vertex_vertex_edges
                     .entry((end_v_id, start_v_id))
                     .or_insert(Vec::new())
-                    .push((edge_id, Direction::In));
+                    .push((edge_id, PatternDirection::In));
             }
         }
         for ((start_v_id, end_v_id), mut connections) in vertex_vertex_edges {
@@ -326,17 +326,17 @@ mod tests {
             for (edge_id, dir) in connect_edges {
                 let edge_connections = ldbc_pattern_meta.get_connect_vertices_of_e(edge_id);
                 for (start_v_id, end_v_id) in edge_connections {
-                    if start_v_id == vertex_id && dir == Direction::Out {
+                    if start_v_id == vertex_id && dir == PatternDirection::Out {
                         vertex_vertex_edges
                             .entry((start_v_id, end_v_id))
                             .or_insert(Vec::new())
-                            .push((edge_id, Direction::Out));
+                            .push((edge_id, PatternDirection::Out));
                     }
-                    if end_v_id == vertex_id && dir == Direction::In {
+                    if end_v_id == vertex_id && dir == PatternDirection::In {
                         vertex_vertex_edges
                             .entry((end_v_id, start_v_id))
                             .or_insert(Vec::new())
-                            .push((edge_id, Direction::In));
+                            .push((edge_id, PatternDirection::In));
                     }
                 }
             }

@@ -21,21 +21,21 @@ use fast_math::log2;
 
 use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
 use crate::catalogue::pattern_meta::PatternMeta;
-use crate::catalogue::{Direction, Index, LabelId, ID};
+use crate::catalogue::{PatternDirection, PatternRankId, PatternLabelId, PatternId};
 
 // use ir_common::generated::algebra as pb;
 // use ir_common::generated::common::
 
 #[derive(Debug, Clone)]
 pub struct PatternVertex {
-    id: ID,
-    label: LabelId,
+    id: PatternId,
+    label: PatternLabelId,
     /// Used to Identify vertices with same label
-    index: Index,
+    index: PatternRankId,
     /// Key: edge id, Value: (vertex id, direction)
-    connect_edges: BTreeMap<ID, (ID, Direction)>,
+    connect_edges: BTreeMap<PatternId, (PatternId, PatternDirection)>,
     /// Key: vertex id, Value: Vec<(edge id, direction)>
-    connect_vertices: BTreeMap<ID, Vec<(ID, Direction)>>,
+    connect_vertices: BTreeMap<PatternId, Vec<(PatternId, PatternDirection)>>,
     /// How many out edges connected to this vertex
     out_degree: usize,
     /// How many in edges connected to this vertex
@@ -44,23 +44,23 @@ pub struct PatternVertex {
 
 /// Methods to access the fields of a PatternVertex
 impl PatternVertex {
-    pub fn get_id(&self) -> ID {
+    pub fn get_id(&self) -> PatternId {
         self.id
     }
 
-    pub fn get_label(&self) -> LabelId {
+    pub fn get_label(&self) -> PatternLabelId {
         self.label
     }
 
-    pub fn get_index(&self) -> Index {
+    pub fn get_index(&self) -> PatternRankId {
         self.index
     }
 
-    pub fn get_connected_edges(&self) -> &BTreeMap<ID, (ID, Direction)> {
+    pub fn get_connected_edges(&self) -> &BTreeMap<PatternId, (PatternId, PatternDirection)> {
         &self.connect_edges
     }
 
-    pub fn get_connected_vertices(&self) -> &BTreeMap<ID, Vec<(ID, Direction)>> {
+    pub fn get_connected_vertices(&self) -> &BTreeMap<PatternId, Vec<(PatternId, PatternDirection)>> {
         &self.connect_vertices
     }
 
@@ -78,12 +78,12 @@ impl PatternVertex {
     }
 
     /// Given a edge id, get the vertex connected to the current vertex through the edge with the connect direction
-    pub fn get_connect_vertex_by_edge_id(&self, edge_id: ID) -> Option<(ID, Direction)> {
+    pub fn get_connect_vertex_by_edge_id(&self, edge_id: PatternId) -> Option<(PatternId, PatternDirection)> {
         self.connect_edges.get(&edge_id).cloned()
     }
 
     /// Given a vertex id, get all the edges connecting the given vertex and current vertex with the connect direction
-    pub fn get_connect_edges_by_vertex_id(&self, vertex_id: ID) -> Vec<(ID, Direction)> {
+    pub fn get_connect_edges_by_vertex_id(&self, vertex_id: PatternId) -> Vec<(PatternId, PatternDirection)> {
         match self.connect_vertices.get(&vertex_id) {
             Some(connect_edges) => connect_edges.clone(),
             None => Vec::new(),
@@ -91,26 +91,26 @@ impl PatternVertex {
     }
 
     /// Setters
-    pub fn set_index(&mut self, index: Index) {
+    pub fn set_index(&mut self, index: PatternRankId) {
         self.index = index;
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct PatternEdge {
-    id: ID,
-    label: LabelId,
-    start_v_id: ID,
-    end_v_id: ID,
-    start_v_label: LabelId,
-    end_v_label: LabelId,
+    id: PatternId,
+    label: PatternLabelId,
+    start_v_id: PatternId,
+    end_v_id: PatternId,
+    start_v_label: PatternLabelId,
+    end_v_label: PatternLabelId,
 }
 
 /// Initializers of PatternEdge
 impl PatternEdge {
     /// Initializer
     pub fn new(
-        id: ID, label: LabelId, start_v_id: ID, end_v_id: ID, start_v_label: LabelId, end_v_label: LabelId,
+        id: PatternId, label: PatternLabelId, start_v_id: PatternId, end_v_id: PatternId, start_v_label: PatternLabelId, end_v_label: PatternLabelId,
     ) -> PatternEdge {
         PatternEdge { id, label, start_v_id, end_v_id, start_v_label, end_v_label }
     }
@@ -118,27 +118,27 @@ impl PatternEdge {
 
 /// Methods to access the fields of a PatternEdge
 impl PatternEdge {
-    pub fn get_id(&self) -> ID {
+    pub fn get_id(&self) -> PatternId {
         self.id
     }
 
-    pub fn get_label(&self) -> LabelId {
+    pub fn get_label(&self) -> PatternLabelId {
         self.label
     }
 
-    pub fn get_start_vertex_id(&self) -> ID {
+    pub fn get_start_vertex_id(&self) -> PatternId {
         self.start_v_id
     }
 
-    pub fn get_end_vertex_id(&self) -> ID {
+    pub fn get_end_vertex_id(&self) -> PatternId {
         self.end_v_id
     }
 
-    pub fn get_start_vertex_label(&self) -> LabelId {
+    pub fn get_start_vertex_label(&self) -> PatternLabelId {
         self.start_v_label
     }
 
-    pub fn get_end_vertex_label(&self) -> LabelId {
+    pub fn get_end_vertex_label(&self) -> PatternLabelId {
         self.end_v_label
     }
 }
@@ -146,19 +146,19 @@ impl PatternEdge {
 #[derive(Debug, Clone)]
 pub struct Pattern {
     /// Key: edge id, Value: struct PatternEdge
-    edges: BTreeMap<ID, PatternEdge>,
+    edges: BTreeMap<PatternId, PatternEdge>,
     /// Key: vertex id, Value: struct PatternVertex
-    vertices: BTreeMap<ID, PatternVertex>,
+    vertices: BTreeMap<PatternId, PatternVertex>,
     /// Key: edge label id, Value: BTreeSet<edge id>
-    edge_label_map: BTreeMap<LabelId, BTreeSet<ID>>,
+    edge_label_map: BTreeMap<PatternLabelId, BTreeSet<PatternId>>,
     /// Key: vertex label id, Value: BTreeSet<vertex id>
-    vertex_label_map: BTreeMap<LabelId, BTreeSet<ID>>,
+    vertex_label_map: BTreeMap<PatternLabelId, BTreeSet<PatternId>>,
 }
 
 /// Initializers of Pattern
 /// Initialize a Pattern containing only one vertex from hte vertex's id and label
-impl From<(ID, LabelId)> for Pattern {
-    fn from((vertex_id, vertex_label): (ID, LabelId)) -> Pattern {
+impl From<(PatternId, PatternLabelId)> for Pattern {
+    fn from((vertex_id, vertex_label): (PatternId, PatternLabelId)) -> Pattern {
         let vertex = PatternVertex {
             id: vertex_id,
             label: vertex_label,
@@ -213,12 +213,12 @@ impl From<Vec<PatternEdge>> for Pattern {
                 Some(start_vertex) => {
                     start_vertex
                         .connect_edges
-                        .insert(edge.id, (edge.end_v_id, Direction::Out));
+                        .insert(edge.id, (edge.end_v_id, PatternDirection::Out));
                     let start_vertex_connect_vertices_vec = start_vertex
                         .connect_vertices
                         .entry(edge.end_v_id)
                         .or_insert(Vec::new());
-                    start_vertex_connect_vertices_vec.push((edge.id, Direction::Out));
+                    start_vertex_connect_vertices_vec.push((edge.id, PatternDirection::Out));
                     start_vertex.out_degree += 1;
                 }
                 // the start vertex not existed, add to the new Pattern
@@ -229,10 +229,10 @@ impl From<Vec<PatternEdge>> for Pattern {
                             id: edge.start_v_id,
                             label: edge.start_v_label,
                             index: 0,
-                            connect_edges: BTreeMap::from([(edge.id, (edge.end_v_id, Direction::Out))]),
+                            connect_edges: BTreeMap::from([(edge.id, (edge.end_v_id, PatternDirection::Out))]),
                             connect_vertices: BTreeMap::from([(
                                 edge.end_v_id,
-                                vec![(edge.id, Direction::Out)],
+                                vec![(edge.id, PatternDirection::Out)],
                             )]),
                             out_degree: 1,
                             in_degree: 0,
@@ -252,12 +252,12 @@ impl From<Vec<PatternEdge>> for Pattern {
                 Some(end_vertex) => {
                     end_vertex
                         .connect_edges
-                        .insert(edge.id, (edge.start_v_id, Direction::In));
+                        .insert(edge.id, (edge.start_v_id, PatternDirection::In));
                     let end_vertex_connect_vertices_vec = end_vertex
                         .connect_vertices
                         .entry(edge.start_v_id)
                         .or_insert(Vec::new());
-                    end_vertex_connect_vertices_vec.push((edge.id, Direction::In));
+                    end_vertex_connect_vertices_vec.push((edge.id, PatternDirection::In));
                     end_vertex.in_degree += 1;
                 }
                 // the end vertex not existed, add the new Pattern
@@ -268,10 +268,10 @@ impl From<Vec<PatternEdge>> for Pattern {
                             id: edge.end_v_id,
                             label: edge.end_v_label,
                             index: 0,
-                            connect_edges: BTreeMap::from([(edge.id, (edge.start_v_id, Direction::In))]),
+                            connect_edges: BTreeMap::from([(edge.id, (edge.start_v_id, PatternDirection::In))]),
                             connect_vertices: BTreeMap::from([(
                                 edge.start_v_id,
-                                vec![(edge.id, Direction::In)],
+                                vec![(edge.id, PatternDirection::In)],
                             )]),
                             out_degree: 0,
                             in_degree: 1,
@@ -321,50 +321,50 @@ impl From<Vec<PatternEdge>> for Pattern {
 /// Methods to access the fields of a Pattern or get some info from Pattern
 impl Pattern {
     /// Get Edges References
-    pub fn get_edges(&self) -> &BTreeMap<ID, PatternEdge> {
+    pub fn get_edges(&self) -> &BTreeMap<PatternId, PatternEdge> {
         &self.edges
     }
 
     /// Get Vertices References
-    pub fn get_vertices(&self) -> &BTreeMap<ID, PatternVertex> {
+    pub fn get_vertices(&self) -> &BTreeMap<PatternId, PatternVertex> {
         &self.vertices
     }
 
     /// Get Edge Label Map Reference
-    pub fn get_edge_label_map(&self) -> &BTreeMap<LabelId, BTreeSet<ID>> {
+    pub fn get_edge_label_map(&self) -> &BTreeMap<PatternLabelId, BTreeSet<PatternId>> {
         &self.edge_label_map
     }
 
     /// Get Vertex Label Map Reference
-    pub fn get_vertex_label_map(&self) -> &BTreeMap<LabelId, BTreeSet<ID>> {
+    pub fn get_vertex_label_map(&self) -> &BTreeMap<PatternLabelId, BTreeSet<PatternId>> {
         &self.vertex_label_map
     }
 
     /// Get PatternEdge Reference from Edge ID
-    pub fn get_edge_from_id(&self, edge_id: ID) -> Option<&PatternEdge> {
+    pub fn get_edge_from_id(&self, edge_id: PatternId) -> Option<&PatternEdge> {
         self.edges.get(&edge_id)
     }
 
     /// Get PatternVertex Reference from Vertex ID
-    pub fn get_vertex_from_id(&self, vertex_id: ID) -> Option<&PatternVertex> {
+    pub fn get_vertex_from_id(&self, vertex_id: PatternId) -> Option<&PatternVertex> {
         self.vertices.get(&vertex_id)
     }
 
-    pub fn get_edge_mut_from_id(&mut self, edge_id: ID) -> Option<&mut PatternEdge> {
+    pub fn get_edge_mut_from_id(&mut self, edge_id: PatternId) -> Option<&mut PatternEdge> {
         self.edges.get_mut(&edge_id)
     }
 
-    pub fn get_vertex_mut_from_id(&mut self, vertex_id: ID) -> Option<&mut PatternVertex> {
+    pub fn get_vertex_mut_from_id(&mut self, vertex_id: PatternId) -> Option<&mut PatternVertex> {
         self.vertices.get_mut(&vertex_id)
     }
 
     /// Get Vertex Index from Vertex ID Reference
-    pub fn get_vertex_index(&self, v_id: ID) -> Index {
+    pub fn get_vertex_index(&self, v_id: PatternId) -> PatternRankId {
         self.vertices.get(&v_id).unwrap().index
     }
 
     /// [Public] Get the order of both start and end vertices of an edge
-    pub fn get_edge_vertices_index(&self, edge_id: ID) -> Option<(Index, Index)> {
+    pub fn get_edge_vertices_index(&self, edge_id: PatternId) -> Option<(PatternRankId, PatternRankId)> {
         if let Some(edge) = self.get_edge_from_id(edge_id) {
             let start_v_index = self.get_vertex_index(edge.start_v_id);
             let end_v_index = self.get_vertex_index(edge.end_v_id);
@@ -395,7 +395,7 @@ impl Pattern {
     }
 
     /// Get the maximum edge label id of the current pattern
-    pub fn get_max_edge_label(&self) -> Option<LabelId> {
+    pub fn get_max_edge_label(&self) -> Option<PatternLabelId> {
         match self.edge_label_map.iter().last() {
             Some((max_label, _)) => Some(*max_label),
             None => None,
@@ -403,7 +403,7 @@ impl Pattern {
     }
 
     /// Get the maximum vertex label id of the current pattern
-    pub fn get_max_vertex_label(&self) -> Option<LabelId> {
+    pub fn get_max_vertex_label(&self) -> Option<PatternLabelId> {
         match self.vertex_label_map.iter().last() {
             Some((max_label, _)) => Some(*max_label),
             None => None,
@@ -450,8 +450,8 @@ impl Pattern {
 impl Pattern {
     /// Get a vector of ordered edges's indexes of a Pattern
     /// The comparison is based on the `cmp_edges` method above to get the Order
-    pub fn get_ordered_edges(&self) -> Vec<ID> {
-        let mut ordered_edges: Vec<ID> = self
+    pub fn get_ordered_edges(&self) -> Vec<PatternId> {
+        let mut ordered_edges: Vec<PatternId> = self
             .edges
             .iter()
             .map(|(edge_id, _)| *edge_id)
@@ -462,7 +462,7 @@ impl Pattern {
 
     /// Get the Order of two PatternEdges in a Pattern
     /// Vertex Indices are taken into consideration
-    fn cmp_edges(&self, e1_id: ID, e2_id: ID) -> Ordering {
+    fn cmp_edges(&self, e1_id: PatternId, e2_id: PatternId) -> Ordering {
         if e1_id == e2_id {
             return Ordering::Equal;
         }
@@ -557,7 +557,7 @@ impl Pattern {
     }
 
     /// Get the Order of two PatternVertices of a Pattern
-    fn cmp_vertices_for_initial_index(&self, v1_id: ID, v2_id: ID) -> Ordering {
+    fn cmp_vertices_for_initial_index(&self, v1_id: PatternId, v2_id: PatternId) -> Ordering {
         if v1_id == v2_id {
             return Ordering::Equal;
         }
@@ -585,13 +585,13 @@ impl Pattern {
         // The 3-element tuple stores (edge_id, edge_label, end_v_label)
         let v1_connected_edges_iter = v1.get_connected_edges().iter();
         let v2_connected_edges_iter = v2.get_connected_edges().iter();
-        let mut v1_connected_out_edges_info_array: Vec<(ID, LabelId, LabelId)> =
+        let mut v1_connected_out_edges_info_array: Vec<(PatternId, PatternLabelId, PatternLabelId)> =
             Vec::with_capacity(v1.out_degree);
-        let mut v1_connected_in_edges_info_array: Vec<(ID, LabelId, LabelId)> =
+        let mut v1_connected_in_edges_info_array: Vec<(PatternId, PatternLabelId, PatternLabelId)> =
             Vec::with_capacity(v1.in_degree);
-        let mut v2_connected_out_edges_info_array: Vec<(ID, LabelId, LabelId)> =
+        let mut v2_connected_out_edges_info_array: Vec<(PatternId, PatternLabelId, PatternLabelId)> =
             Vec::with_capacity(v2.out_degree);
-        let mut v2_connected_in_edges_info_array: Vec<(ID, LabelId, LabelId)> =
+        let mut v2_connected_in_edges_info_array: Vec<(PatternId, PatternLabelId, PatternLabelId)> =
             Vec::with_capacity(v2.in_degree);
         for (v1_connected_edge_id, (v1_connected_edge_end_v_id, v1_connected_edge_dir)) in
             v1_connected_edges_iter
@@ -605,12 +605,12 @@ impl Pattern {
                 .unwrap()
                 .get_label();
             match v1_connected_edge_dir {
-                Direction::Out => v1_connected_out_edges_info_array.push((
+                PatternDirection::Out => v1_connected_out_edges_info_array.push((
                     *v1_connected_edge_id,
                     v1_connected_edge_label,
                     v1_connected_edge_end_v_label,
                 )),
-                Direction::In => v1_connected_in_edges_info_array.push((
+                PatternDirection::In => v1_connected_in_edges_info_array.push((
                     *v1_connected_edge_id,
                     v1_connected_edge_label,
                     v1_connected_edge_end_v_label,
@@ -629,12 +629,12 @@ impl Pattern {
                 .unwrap()
                 .get_label();
             match v2_connected_edge_dir {
-                Direction::Out => v2_connected_out_edges_info_array.push((
+                PatternDirection::Out => v2_connected_out_edges_info_array.push((
                     *v2_connected_edge_id,
                     v2_connected_edge_label,
                     v2_connected_edge_end_v_label,
                 )),
-                Direction::In => v2_connected_in_edges_info_array.push((
+                PatternDirection::In => v2_connected_in_edges_info_array.push((
                     *v2_connected_edge_id,
                     v2_connected_edge_label,
                     v2_connected_edge_end_v_label,
@@ -697,7 +697,7 @@ impl Pattern {
     /// Considers only the edge label, start/end vertex label
     ///
     /// Vertex Infices are not considered
-    fn cmp_edges_without_index(&self, e1_id: ID, e2_id: ID) -> Ordering {
+    fn cmp_edges_without_index(&self, e1_id: PatternId, e2_id: PatternId) -> Ordering {
         if e1_id == e2_id {
             return Ordering::Equal;
         }
@@ -736,22 +736,22 @@ impl Pattern {
     /// Set Accurate Indices According to the Initial Indices Set in Step-1
     fn set_accurate_index(&mut self) {
         // Initializde the visited Hashmap for all the vertices
-        let mut visited_map: HashMap<ID, bool> = HashMap::new();
+        let mut visited_map: HashMap<PatternId, bool> = HashMap::new();
         for (v_id, _) in self.get_vertices().iter() {
             visited_map.insert(*v_id, false);
         }
         // Iteratively find a group of vertices sharing the same index
-        let same_index_vertex_groups: Vec<Vec<ID>> = self.get_same_index_vertex_groups();
+        let same_index_vertex_groups: Vec<Vec<PatternId>> = self.get_same_index_vertex_groups();
 
         // Constructing Neighboring Information for Vertex Groups Sharing the Same Index
-        let mut vertex_neighbor_info_map: HashMap<ID, Vec<ID>> = HashMap::new();
+        let mut vertex_neighbor_info_map: HashMap<PatternId, Vec<PatternId>> = HashMap::new();
         for i in 0..same_index_vertex_groups.len() {
-            let vertex_group: &Vec<ID> = &same_index_vertex_groups[i];
+            let vertex_group: &Vec<PatternId> = &same_index_vertex_groups[i];
             if vertex_group.len() == 1 {
                 continue;
             } else {
                 for v_id in vertex_group {
-                    let neighbor_info: &mut Vec<(ID, ID)> = &mut Vec::new();
+                    let neighbor_info: &mut Vec<(PatternId, PatternId)> = &mut Vec::new();
                     for (edge_id, (target_v_id, _)) in self
                         .get_vertex_from_id(*v_id)
                         .unwrap()
@@ -761,7 +761,7 @@ impl Pattern {
                         neighbor_info.push((*edge_id, *target_v_id));
                     }
                     neighbor_info.sort_by(|edge_1, edge_2| self.cmp_edges(edge_1.0, edge_2.0));
-                    let mut neighbor_vertices: Vec<ID> = Vec::with_capacity(neighbor_info.len());
+                    let mut neighbor_vertices: Vec<PatternId> = Vec::with_capacity(neighbor_info.len());
                     for i in 0..neighbor_info.len() {
                         neighbor_vertices.push(neighbor_info[i].1);
                     }
@@ -776,11 +776,11 @@ impl Pattern {
                 continue;
             }
             if vertex_group.len() > 1 {
-                let initial_index: Index = self
+                let initial_index: PatternRankId = self
                     .get_vertex_from_id(vertex_group[0])
                     .unwrap()
                     .get_index();
-                let mut accurate_index_vec: Vec<Index> = Vec::with_capacity(vertex_group.len());
+                let mut accurate_index_vec: Vec<PatternRankId> = Vec::with_capacity(vertex_group.len());
                 for _ in 0..vertex_group.len() {
                     accurate_index_vec.push(initial_index);
                 }
@@ -807,10 +807,10 @@ impl Pattern {
         }
     }
 
-    fn get_same_index_vertex_groups(&mut self) -> Vec<Vec<ID>> {
-        let mut same_index_vertex_groups: Vec<Vec<ID>> = Vec::new();
+    fn get_same_index_vertex_groups(&mut self) -> Vec<Vec<PatternId>> {
+        let mut same_index_vertex_groups: Vec<Vec<PatternId>> = Vec::new();
         for (_, vertex_set) in self.get_vertex_label_map().iter() {
-            let mut vertex_vec: Vec<ID> = Vec::new();
+            let mut vertex_vec: Vec<PatternId> = Vec::new();
             // Push all the vertices with the same label into a vector
             for v_id in vertex_set.iter() {
                 vertex_vec.push(*v_id);
@@ -854,8 +854,8 @@ impl Pattern {
     }
 
     fn cmp_vertices_for_accurate_index(
-        &mut self, v1_id: ID, v2_id: ID, vertex_neighbor_info_map: &HashMap<ID, Vec<ID>>,
-        visited_map: &mut HashMap<ID, bool>,
+        &mut self, v1_id: PatternId, v2_id: PatternId, vertex_neighbor_info_map: &HashMap<PatternId, Vec<PatternId>>,
+        visited_map: &mut HashMap<PatternId, bool>,
     ) -> Ordering {
         // Return Equal if the Two Vertices Have the Same Index
         if v1_id == v2_id {
@@ -927,7 +927,7 @@ impl Pattern {
 impl Pattern {
     /// Get all the vertices(id) with the same vertex label and vertex index
     /// These vertices are equivalent in the Pattern
-    fn get_equivalent_vertices(&self, v_label: LabelId, v_index: Index) -> Vec<ID> {
+    fn get_equivalent_vertices(&self, v_label: PatternLabelId, v_index: PatternRankId) -> Vec<PatternId> {
         let mut equivalent_vertices = Vec::new();
         if let Some(vs_with_same_label) = self.vertex_label_map.get(&v_label) {
             for v_id in vs_with_same_label {
@@ -942,8 +942,8 @@ impl Pattern {
     }
 
     /// Get the legal id for the future incoming vertex
-    fn get_next_pattern_vertex_id(&self) -> ID {
-        let mut new_vertex_id = self.vertices.len() as ID;
+    fn get_next_pattern_vertex_id(&self) -> PatternId {
+        let mut new_vertex_id = self.vertices.len() as PatternId;
         while self.vertices.contains_key(&new_vertex_id) {
             new_vertex_id += 1;
         }
@@ -951,8 +951,8 @@ impl Pattern {
     }
 
     /// Get the legal id for the future incoming vertex
-    fn get_next_pattern_edge_id(&self) -> ID {
-        let mut new_edge_id = self.edges.len() as ID;
+    fn get_next_pattern_edge_id(&self) -> PatternId {
+        let mut new_edge_id = self.edges.len() as PatternId;
         while self.edges.contains_key(&new_edge_id) {
             new_edge_id += 1;
         }
@@ -985,7 +985,7 @@ impl Pattern {
             for i in 0..extend_edges.len() {
                 match extend_edges[i].get_direction() {
                     // Case that the extend edge's direciton is Out
-                    Direction::Out => {
+                    PatternDirection::Out => {
                         // new pattern edge info
                         let new_pattern_edge = PatternEdge {
                             id: new_pattern.get_next_pattern_edge_id(),
@@ -1002,10 +1002,10 @@ impl Pattern {
                         // update newly extended pattern vertex's connection info
                         new_pattern_vertex
                             .connect_edges
-                            .insert(new_pattern_edge.id, (vertices_can_use[i], Direction::In));
+                            .insert(new_pattern_edge.id, (vertices_can_use[i], PatternDirection::In));
                         new_pattern_vertex
                             .connect_vertices
-                            .insert(vertices_can_use[i], vec![(new_pattern_edge.id, Direction::Out)]);
+                            .insert(vertices_can_use[i], vec![(new_pattern_edge.id, PatternDirection::Out)]);
                         new_pattern_vertex.in_degree += 1;
                         // Add the new pattern edge info to the new Pattern
                         new_pattern
@@ -1018,7 +1018,7 @@ impl Pattern {
                             .insert(new_pattern_edge.id, new_pattern_edge);
                     }
                     // Case that the extend edge's direction is Incoming
-                    Direction::In => {
+                    PatternDirection::In => {
                         let new_pattern_edge = PatternEdge {
                             id: new_pattern.get_next_pattern_edge_id(),
                             label: extend_edges[i].get_edge_label(),
@@ -1033,10 +1033,10 @@ impl Pattern {
                         };
                         new_pattern_vertex
                             .connect_edges
-                            .insert(new_pattern_edge.id, (vertices_can_use[i], Direction::Out));
+                            .insert(new_pattern_edge.id, (vertices_can_use[i], PatternDirection::Out));
                         new_pattern_vertex
                             .connect_vertices
-                            .insert(vertices_can_use[i], vec![(new_pattern_edge.id, Direction::In)]);
+                            .insert(vertices_can_use[i], vec![(new_pattern_edge.id, PatternDirection::In)]);
                         new_pattern_vertex.out_degree += 1;
                         new_pattern
                             .edge_label_map
@@ -1122,11 +1122,11 @@ impl Pattern {
 
 #[cfg(test)]
 mod tests {
-    use super::Direction;
+    use super::PatternDirection;
     use super::Pattern;
     use crate::catalogue::codec::*;
     use crate::catalogue::test_cases::*;
-    use crate::catalogue::ID;
+    use crate::catalogue::PatternId;
 
     /// Test whether the structure of pattern_case1 is the same as our previous description
     #[test]
@@ -1168,17 +1168,17 @@ mod tests {
         let (v0_e0, (v0_v0, v0_d0)) = vertex_0_connect_edges_iter.next().unwrap();
         assert_eq!(*v0_e0, 0);
         assert_eq!(*v0_v0, 1);
-        assert_eq!(*v0_d0, Direction::Out);
+        assert_eq!(*v0_d0, PatternDirection::Out);
         let (v0_e1, (v0_v1, v0_d1)) = vertex_0_connect_edges_iter.next().unwrap();
         assert_eq!(*v0_e1, 1);
         assert_eq!(*v0_v1, 1);
-        assert_eq!(*v0_d1, Direction::In);
+        assert_eq!(*v0_d1, PatternDirection::In);
         assert_eq!(vertex_0.connect_vertices.len(), 1);
         let v0_v1_connected_edges = vertex_0.connect_vertices.get(&1).unwrap();
         assert_eq!(v0_v1_connected_edges.len(), 2);
         let mut v0_v1_connected_edges_iter = v0_v1_connected_edges.iter();
-        assert_eq!(*v0_v1_connected_edges_iter.next().unwrap(), (0, Direction::Out));
-        assert_eq!(*v0_v1_connected_edges_iter.next().unwrap(), (1, Direction::In));
+        assert_eq!(*v0_v1_connected_edges_iter.next().unwrap(), (0, PatternDirection::Out));
+        assert_eq!(*v0_v1_connected_edges_iter.next().unwrap(), (1, PatternDirection::In));
         let vertex_1 = pattern_case1.vertices.get(&1).unwrap();
         assert_eq!(vertex_1.id, 1);
         assert_eq!(vertex_1.label, 0);
@@ -1187,17 +1187,17 @@ mod tests {
         let (v1_e0, (v1_v0, v1_d0)) = vertex_1_connect_edges_iter.next().unwrap();
         assert_eq!(*v1_e0, 0);
         assert_eq!(*v1_v0, 0);
-        assert_eq!(*v1_d0, Direction::In);
+        assert_eq!(*v1_d0, PatternDirection::In);
         let (v1_e1, (v1_v1, v1_d1)) = vertex_1_connect_edges_iter.next().unwrap();
         assert_eq!(*v1_e1, 1);
         assert_eq!(*v1_v1, 0);
-        assert_eq!(*v1_d1, Direction::Out);
+        assert_eq!(*v1_d1, PatternDirection::Out);
         assert_eq!(vertex_1.connect_vertices.len(), 1);
         let v1_v0_connected_edges = vertex_1.connect_vertices.get(&0).unwrap();
         assert_eq!(v1_v0_connected_edges.len(), 2);
         let mut v1_v0_connected_edges_iter = v1_v0_connected_edges.iter();
-        assert_eq!(*v1_v0_connected_edges_iter.next().unwrap(), (0, Direction::In));
-        assert_eq!(*v1_v0_connected_edges_iter.next().unwrap(), (1, Direction::Out));
+        assert_eq!(*v1_v0_connected_edges_iter.next().unwrap(), (0, PatternDirection::In));
+        assert_eq!(*v1_v0_connected_edges_iter.next().unwrap(), (1, PatternDirection::Out));
     }
 
     /// Test whether pattern_case1 + extend_step_case1 = pattern_case2
@@ -1211,7 +1211,7 @@ mod tests {
         // Pattern after extend should be exactly the same as pattern case2
         let pattern_case2 = build_pattern_case2();
         assert_eq!(pattern_after_extend.edges.len(), pattern_case2.edges.len());
-        for i in 0..pattern_after_extend.edges.len() as ID {
+        for i in 0..pattern_after_extend.edges.len() as PatternId {
             let edge1 = pattern_after_extend.edges.get(&i).unwrap();
             let edge2 = pattern_case2.edges.get(&i).unwrap();
             assert_eq!(edge1.id, edge2.id);
@@ -1222,7 +1222,7 @@ mod tests {
             assert_eq!(edge1.end_v_label, edge2.end_v_label);
         }
         assert_eq!(pattern_after_extend.edges.len(), pattern_case2.edges.len());
-        for i in 0..pattern_after_extend.vertices.len() as ID {
+        for i in 0..pattern_after_extend.vertices.len() as PatternId {
             let vertex1 = pattern_after_extend.vertices.get(&i).unwrap();
             let vertex2 = pattern_after_extend.vertices.get(&i).unwrap();
             assert_eq!(vertex1.id, vertex2.id);
@@ -1310,14 +1310,14 @@ mod tests {
             assert_eq!(extend_edge.get_start_vertex_label(), 0);
             assert_eq!(extend_edge.get_start_vertex_index(), 0);
             if extend_step.get_target_v_label() == 0 {
-                if extend_edge.get_direction() == Direction::Out {
+                if extend_edge.get_direction() == PatternDirection::Out {
                     out_0_0_0 += 1;
                 }
-                if extend_edge.get_direction() == Direction::In {
+                if extend_edge.get_direction() == PatternDirection::In {
                     incoming_0_0_0 += 1;
                 }
             }
-            if extend_step.get_target_v_label() == 1 && extend_edge.get_direction() == Direction::Out {
+            if extend_step.get_target_v_label() == 1 && extend_edge.get_direction() == PatternDirection::Out {
                 out_0_0_1 += 1;
             }
         }
@@ -1340,7 +1340,7 @@ mod tests {
         assert_eq!(extend_edge.get_start_vertex_label(), 1);
         assert_eq!(extend_edge.get_start_vertex_index(), 0);
         assert_eq!(extend_edge.get_edge_label(), 1);
-        assert_eq!(extend_edge.get_direction(), Direction::In);
+        assert_eq!(extend_edge.get_direction(), PatternDirection::In);
     }
 
     #[test]
@@ -1373,22 +1373,22 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 0
                             {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 incoming_0_0_0_count += 1
                             }
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 1
                             {
                                 out_0_0_1_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 1
                             {
                                 out_0_1_1_count += 1;
@@ -1401,22 +1401,22 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 1);
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 out_0_1_0_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 incoming_0_1_0_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 1
                             {
                                 out_0_0_1_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 1
                             {
                                 out_0_1_1_count += 1;
@@ -1435,11 +1435,11 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 0
                             {
                                 found_out_0_0_0 = true;
-                            } else if extend_edge.get_direction() == Direction::In
+                            } else if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 found_incoming_0_0_0 = true;
@@ -1453,11 +1453,11 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 1);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 0
                             {
                                 found_out_0_1_0 = true;
-                            } else if extend_edge.get_direction() == Direction::In
+                            } else if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 found_incoming_0_1_0 = true;
@@ -1484,17 +1484,17 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 1
                             {
                                 out_0_0_1_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 0
                             {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 incoming_0_0_0_count += 1
@@ -1507,17 +1507,17 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 1);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 1
                             {
                                 out_0_1_1_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 0
                             {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 incoming_0_0_0_count += 1
@@ -1534,7 +1534,7 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 1
                             {
                                 found_out_0_0_1 = true;
@@ -1548,7 +1548,7 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 1);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 1
                             {
                                 found_out_0_1_1 = true;
@@ -1600,17 +1600,17 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 0
                             {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 incoming_0_0_0_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 1
                             {
                                 incoming_1_0_1_count += 1;
@@ -1623,17 +1623,17 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 1);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 0
                             {
                                 out_0_0_0_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 incoming_0_0_0_count += 1;
                             }
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 1
                             {
                                 incoming_1_0_1_count += 1;
@@ -1651,11 +1651,11 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 0);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
-                            if extend_edge.get_direction() == Direction::Out
+                            if extend_edge.get_direction() == PatternDirection::Out
                                 && extend_edge.get_edge_label() == 0
                             {
                                 found_out_0_0_0 = true;
-                            } else if extend_edge.get_direction() == Direction::In
+                            } else if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 0
                             {
                                 found_incoming_0_0_0 = true;
@@ -1669,7 +1669,7 @@ mod tests {
                         for extend_edge in extend_edges {
                             assert_eq!(extend_edge.get_start_vertex_label(), 1);
                             assert_eq!(extend_edge.get_start_vertex_index(), 0);
-                            if extend_edge.get_direction() == Direction::In
+                            if extend_edge.get_direction() == PatternDirection::In
                                 && extend_edge.get_edge_label() == 1
                             {
                                 found_incoming_1_0_1 = true;
@@ -1748,10 +1748,10 @@ mod tests {
     fn set_initial_index_case5() {
         let mut pattern = build_pattern_case5();
         pattern.set_initial_index();
-        let id_vec_a: Vec<ID> = vec![100, 200, 300, 400];
-        let id_vec_b: Vec<ID> = vec![10, 20, 30];
-        let id_vec_c: Vec<ID> = vec![1, 2, 3];
-        let id_vec_d: Vec<ID> = vec![1000];
+        let id_vec_a: Vec<PatternId> = vec![100, 200, 300, 400];
+        let id_vec_b: Vec<PatternId> = vec![10, 20, 30];
+        let id_vec_c: Vec<PatternId> = vec![1, 2, 3];
+        let id_vec_d: Vec<PatternId> = vec![1000];
         let vertices = pattern.get_vertices();
         // A
         assert_eq!(vertices.get(&id_vec_a[0]).unwrap().get_index(), 1);
@@ -1815,10 +1815,10 @@ mod tests {
     fn set_accurate_index_case5() {
         let mut pattern = build_pattern_case5();
         pattern.index_ranking();
-        let id_vec_a: Vec<ID> = vec![100, 200, 300, 400];
-        let id_vec_b: Vec<ID> = vec![10, 20, 30];
-        let id_vec_c: Vec<ID> = vec![1, 2, 3];
-        let id_vec_d: Vec<ID> = vec![1000];
+        let id_vec_a: Vec<PatternId> = vec![100, 200, 300, 400];
+        let id_vec_b: Vec<PatternId> = vec![10, 20, 30];
+        let id_vec_c: Vec<PatternId> = vec![1, 2, 3];
+        let id_vec_d: Vec<PatternId> = vec![1000];
         let vertices = pattern.get_vertices();
         // A
         assert_eq!(vertices.get(&id_vec_a[0]).unwrap().get_index(), 1);
