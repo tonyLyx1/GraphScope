@@ -15,9 +15,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::plan::meta::Schema;
-
 use crate::catalogue::{PatternDirection, PatternLabelId};
+use crate::plan::meta::Schema;
 
 #[derive(Debug)]
 pub struct PatternMeta {
@@ -30,7 +29,8 @@ pub struct PatternMeta {
     /// Key: edge label id, Value: Vec<(src vertex label id, dst vertex label id)>
     edge_connect_vertices: BTreeMap<PatternLabelId, Vec<(PatternLabelId, PatternLabelId)>>,
     /// Key: (src vertex label id, dst vertex label id), Value: Vec<(edge label id, direction)>
-    vertex_vertex_edges: BTreeMap<(PatternLabelId, PatternLabelId), Vec<(PatternLabelId, PatternDirection)>>,
+    vertex_vertex_edges:
+        BTreeMap<(PatternLabelId, PatternLabelId), Vec<(PatternLabelId, PatternDirection)>>,
 }
 
 /// Initializer of PatternMeta
@@ -165,7 +165,9 @@ impl PatternMeta {
     }
 
     /// Given a source vertex label, find all its neiboring connected edges(label)
-    pub fn get_connect_edges_of_v(&self, src_v_label: PatternLabelId) -> Vec<(PatternLabelId, PatternDirection)> {
+    pub fn get_connect_edges_of_v(
+        &self, src_v_label: PatternLabelId,
+    ) -> Vec<(PatternLabelId, PatternDirection)> {
         match self.vertex_connect_edges.get(&src_v_label) {
             Some(connections) => {
                 let mut connections_vec = Vec::new();
@@ -179,7 +181,9 @@ impl PatternMeta {
     }
 
     /// Given a source edge label, find all possible pairs of its (src vertex label, dst vertex label)
-    pub fn get_connect_vertices_of_e(&self, src_e_label: PatternLabelId) -> Vec<(PatternLabelId, PatternLabelId)> {
+    pub fn get_connect_vertices_of_e(
+        &self, src_e_label: PatternLabelId,
+    ) -> Vec<(PatternLabelId, PatternLabelId)> {
         match self.edge_connect_vertices.get(&src_e_label) {
             Some(connections) => connections.clone(),
             None => Vec::new(),
@@ -205,7 +209,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::PatternMeta;
-    use crate::catalogue::test_cases::*;
+    use crate::catalogue::test_cases::pattern_meta_cases::*;
     use crate::catalogue::PatternDirection;
 
     /// Test whether the pattern meta from the modern graph obeys our expectation

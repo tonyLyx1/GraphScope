@@ -16,7 +16,7 @@
 use std::collections::btree_map::Iter as ExtendStepIter;
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::catalogue::{PatternDirection, PatternRankId, PatternLabelId};
+use crate::catalogue::{PatternDirection, PatternLabelId, PatternRankId};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendEdge {
@@ -29,7 +29,8 @@ pub struct ExtendEdge {
 /// Initializer of ExtendEdge
 impl ExtendEdge {
     pub fn new(
-        start_v_label: PatternLabelId, start_v_index: PatternRankId, edge_label: PatternLabelId, dir: PatternDirection,
+        start_v_label: PatternLabelId, start_v_index: PatternRankId, edge_label: PatternLabelId,
+        dir: PatternDirection,
     ) -> ExtendEdge {
         ExtendEdge { start_v_label, start_v_index, edge_label, dir }
     }
@@ -143,7 +144,7 @@ pub fn get_subsets<T: Clone>(origin_vec: Vec<T>) -> Vec<Vec<T>> {
 #[cfg(test)]
 mod tests {
     use crate::catalogue::extend_step::*;
-    use crate::catalogue::test_cases::*;
+    use crate::catalogue::test_cases::extend_step_cases::*;
     use crate::catalogue::PatternDirection;
 
     #[test]

@@ -15,13 +15,13 @@
 
 use std::cmp::{max, Ordering};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
-// use std::convert::TryFrom;
 
+// use std::convert::TryFrom;
 use fast_math::log2;
 
 use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
 use crate::catalogue::pattern_meta::PatternMeta;
-use crate::catalogue::{PatternDirection, PatternRankId, PatternLabelId, PatternId};
+use crate::catalogue::{PatternDirection, PatternId, PatternLabelId, PatternRankId};
 
 // use ir_common::generated::algebra as pb;
 // use ir_common::generated::common::
@@ -78,12 +78,16 @@ impl PatternVertex {
     }
 
     /// Given a edge id, get the vertex connected to the current vertex through the edge with the connect direction
-    pub fn get_connect_vertex_by_edge_id(&self, edge_id: PatternId) -> Option<(PatternId, PatternDirection)> {
+    pub fn get_connect_vertex_by_edge_id(
+        &self, edge_id: PatternId,
+    ) -> Option<(PatternId, PatternDirection)> {
         self.connect_edges.get(&edge_id).cloned()
     }
 
     /// Given a vertex id, get all the edges connecting the given vertex and current vertex with the connect direction
-    pub fn get_connect_edges_by_vertex_id(&self, vertex_id: PatternId) -> Vec<(PatternId, PatternDirection)> {
+    pub fn get_connect_edges_by_vertex_id(
+        &self, vertex_id: PatternId,
+    ) -> Vec<(PatternId, PatternDirection)> {
         match self.connect_vertices.get(&vertex_id) {
             Some(connect_edges) => connect_edges.clone(),
             None => Vec::new(),
@@ -110,7 +114,8 @@ pub struct PatternEdge {
 impl PatternEdge {
     /// Initializer
     pub fn new(
-        id: PatternId, label: PatternLabelId, start_v_id: PatternId, end_v_id: PatternId, start_v_label: PatternLabelId, end_v_label: PatternLabelId,
+        id: PatternId, label: PatternLabelId, start_v_id: PatternId, end_v_id: PatternId,
+        start_v_label: PatternLabelId, end_v_label: PatternLabelId,
     ) -> PatternEdge {
         PatternEdge { id, label, start_v_id, end_v_id, start_v_label, end_v_label }
     }
@@ -229,7 +234,10 @@ impl From<Vec<PatternEdge>> for Pattern {
                             id: edge.start_v_id,
                             label: edge.start_v_label,
                             index: 0,
-                            connect_edges: BTreeMap::from([(edge.id, (edge.end_v_id, PatternDirection::Out))]),
+                            connect_edges: BTreeMap::from([(
+                                edge.id,
+                                (edge.end_v_id, PatternDirection::Out),
+                            )]),
                             connect_vertices: BTreeMap::from([(
                                 edge.end_v_id,
                                 vec![(edge.id, PatternDirection::Out)],
@@ -268,7 +276,10 @@ impl From<Vec<PatternEdge>> for Pattern {
                             id: edge.end_v_id,
                             label: edge.end_v_label,
                             index: 0,
-                            connect_edges: BTreeMap::from([(edge.id, (edge.start_v_id, PatternDirection::In))]),
+                            connect_edges: BTreeMap::from([(
+                                edge.id,
+                                (edge.start_v_id, PatternDirection::In),
+                            )]),
                             connect_vertices: BTreeMap::from([(
                                 edge.start_v_id,
                                 vec![(edge.id, PatternDirection::In)],
@@ -308,8 +319,8 @@ impl From<Vec<PatternEdge>> for Pattern {
 //                 .item
 //                 .as_ref()
 //                 .ok_or(())?;
-//             if 
-            
+//             if
+
 //             for binder in sentence.binders.iter() {
 
 //             }
@@ -854,7 +865,8 @@ impl Pattern {
     }
 
     fn cmp_vertices_for_accurate_index(
-        &mut self, v1_id: PatternId, v2_id: PatternId, vertex_neighbor_info_map: &HashMap<PatternId, Vec<PatternId>>,
+        &mut self, v1_id: PatternId, v2_id: PatternId,
+        vertex_neighbor_info_map: &HashMap<PatternId, Vec<PatternId>>,
         visited_map: &mut HashMap<PatternId, bool>,
     ) -> Ordering {
         // Return Equal if the Two Vertices Have the Same Index
@@ -1003,9 +1015,10 @@ impl Pattern {
                         new_pattern_vertex
                             .connect_edges
                             .insert(new_pattern_edge.id, (vertices_can_use[i], PatternDirection::In));
-                        new_pattern_vertex
-                            .connect_vertices
-                            .insert(vertices_can_use[i], vec![(new_pattern_edge.id, PatternDirection::Out)]);
+                        new_pattern_vertex.connect_vertices.insert(
+                            vertices_can_use[i],
+                            vec![(new_pattern_edge.id, PatternDirection::Out)],
+                        );
                         new_pattern_vertex.in_degree += 1;
                         // Add the new pattern edge info to the new Pattern
                         new_pattern
@@ -1122,10 +1135,12 @@ impl Pattern {
 
 #[cfg(test)]
 mod tests {
-    use super::PatternDirection;
     use super::Pattern;
+    use super::PatternDirection;
     use crate::catalogue::codec::*;
-    use crate::catalogue::test_cases::*;
+    use crate::catalogue::test_cases::extend_step_cases::*;
+    use crate::catalogue::test_cases::pattern_cases::*;
+    use crate::catalogue::test_cases::pattern_meta_cases::*;
     use crate::catalogue::PatternId;
 
     /// Test whether the structure of pattern_case1 is the same as our previous description
@@ -1317,7 +1332,8 @@ mod tests {
                     incoming_0_0_0 += 1;
                 }
             }
-            if extend_step.get_target_v_label() == 1 && extend_edge.get_direction() == PatternDirection::Out {
+            if extend_step.get_target_v_label() == 1 && extend_edge.get_direction() == PatternDirection::Out
+            {
                 out_0_0_1 += 1;
             }
         }

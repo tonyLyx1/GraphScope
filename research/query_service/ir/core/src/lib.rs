@@ -17,9 +17,9 @@ use std::io;
 
 pub use crate::plan::ffi::*;
 
+pub mod catalogue;
 pub mod error;
 pub mod plan;
-pub mod catalogue;
 
 #[macro_use]
 extern crate lazy_static;

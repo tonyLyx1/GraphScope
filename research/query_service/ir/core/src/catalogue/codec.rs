@@ -658,7 +658,8 @@ mod tests {
 
     use crate::catalogue::codec::*;
     use crate::catalogue::pattern::*;
-    use crate::catalogue::test_cases::*;
+    use crate::catalogue::test_cases::extend_step_cases::*;
+    use crate::catalogue::test_cases::pattern_cases::*;
 
     /// ### Generate AsciiString from Vector
     fn generate_asciistring_from_vec(vec: &[u8]) -> AsciiString {

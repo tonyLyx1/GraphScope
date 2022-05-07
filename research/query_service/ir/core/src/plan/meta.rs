@@ -181,7 +181,9 @@ impl Schema {
         self.is_table_id
     }
 
-    pub fn get_pattern_schema_info(&self) -> (BTreeMap<String, i32>, BTreeMap<String, Vec<(LabelMeta, LabelMeta)>>) {
+    pub fn get_pattern_schema_info(
+        &self,
+    ) -> (BTreeMap<String, i32>, BTreeMap<String, Vec<(LabelMeta, LabelMeta)>>) {
         (self.table_map.clone(), self.relation_labels.clone())
     }
 }
