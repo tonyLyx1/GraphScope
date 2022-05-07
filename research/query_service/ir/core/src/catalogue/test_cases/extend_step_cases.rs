@@ -13,20 +13,8 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
-use std::collections::HashMap;
-use std::fs::File;
-
-use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
-use rand::Rng;
-use rand::SeedableRng;
-
 use crate::catalogue::extend_step::*;
-use crate::catalogue::pattern::*;
-use crate::catalogue::pattern_meta::*;
 use crate::catalogue::PatternDirection;
-use crate::catalogue::{PatternId, PatternLabelId};
-use crate::{plan::meta::Schema, JsonIO};
 
 /// The extend step looks like:
 ///         B
