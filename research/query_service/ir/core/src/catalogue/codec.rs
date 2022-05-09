@@ -1649,12 +1649,10 @@ mod tests {
     fn test_encode_decode_rank_ranking_case17_vec_u8() {
         let (mut pattern, _) = build_pattern_rank_ranking_case17();
         pattern.rank_ranking();
-        println!("{:?}", pattern);
         let encoder = Encoder::init_by_pattern(&pattern, 4);
         let pattern_code1: Vec<u8> = pattern.encode_to(&encoder);
         let (mut pattern, _) = build_pattern_rank_ranking_case17();
         pattern.rank_ranking();
-        println!("{:?}", pattern);
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
         let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();

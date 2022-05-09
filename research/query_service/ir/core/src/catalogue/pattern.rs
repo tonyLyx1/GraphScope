@@ -13,12 +13,11 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
-use std::cmp::{max, Ordering};
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 
-use fast_math::log2;
 use ir_common::generated::algebra as pb;
 use vec_map::VecMap;
 
@@ -468,7 +467,11 @@ impl Pattern {
     /// At least 1 bit
     pub fn get_min_edge_label_bit_num(&self) -> usize {
         if let Some(max_edge_label) = self.get_max_edge_label() {
-            max(1, log2((max_edge_label + 1) as f32).ceil() as usize)
+            let mut min_bit = 1;
+            while max_edge_label >> min_bit > 0 {
+                min_bit += 1
+            }
+            min_bit
         } else {
             1
         }
@@ -478,7 +481,11 @@ impl Pattern {
     /// At least 1 bit
     pub fn get_min_vertex_label_bit_num(&self) -> usize {
         if let Some(max_vertex_label) = self.get_max_vertex_label() {
-            max(1, log2((max_vertex_label + 1) as f32).ceil() as usize)
+            let mut min_bit = 1;
+            while max_vertex_label >> min_bit > 0 {
+                min_bit += 1
+            }
+            min_bit
         } else {
             1
         }
@@ -491,7 +498,10 @@ impl Pattern {
         let mut min_rank_bit_num: usize = 1;
         for (_, value) in self.vertex_label_map.iter() {
             let same_label_vertex_num = value.len() as u64;
-            let rank_bit_num: usize = log2(same_label_vertex_num as f32).ceil() as usize;
+            let mut rank_bit_num= 1;
+            while same_label_vertex_num >> rank_bit_num > 0 {
+                rank_bit_num += 1;
+            }
             if rank_bit_num > min_rank_bit_num {
                 min_rank_bit_num = rank_bit_num;
             }
@@ -544,17 +554,17 @@ impl Pattern {
         let (e1_start_v_rank, e1_end_v_rank) = self
             .get_edge_vertices_rank(e1.get_id())
             .unwrap();
-        let (e2_start_v_order, e2_end_v_order) = self
+        let (e2_start_v_rank, e2_end_v_rank) = self
             .get_edge_vertices_rank(e2.get_id())
             .unwrap();
         // Compare the order of the starting vertex
-        match e1_start_v_rank.cmp(&e2_start_v_order) {
+        match e1_start_v_rank.cmp(&e2_start_v_rank) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
         }
         // Compare the order of ending vertex
-        match e1_end_v_rank.cmp(&e2_end_v_order) {
+        match e1_end_v_rank.cmp(&e2_end_v_rank) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             _ => (),
