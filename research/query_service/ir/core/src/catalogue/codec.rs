@@ -20,11 +20,11 @@ use ascii::AsciiChar;
 use ascii::AsciiString;
 use ascii::ToAsciiChar;
 
-use crate::error::IrError;
 use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
 use crate::catalogue::pattern::Pattern;
 use crate::catalogue::pattern::PatternEdge;
 use crate::catalogue::PatternDirection;
+use crate::error::IrError;
 
 pub trait Cipher<T>: Sized {
     fn encode_to(&self, encoder: &Encoder) -> T;
@@ -613,22 +613,23 @@ impl DecodeUnit {
                 let end_v_label = decode_vec[i + 2];
                 let start_v_label = decode_vec[i + 3];
                 let edge_label = decode_vec[i + 4];
-                let edge_id = (i / 5) as i32;
-                let start_v_id = if vertices_label_rank_id_map.contains_key(&(start_v_label, start_v_rank)) {
+                let edge_id = i / 5;
+                let start_v_id = if vertices_label_rank_id_map.contains_key(&(start_v_label, start_v_rank))
+                {
                     *vertices_label_rank_id_map
                         .get(&(start_v_label, start_v_rank))
                         .unwrap()
                 } else {
-                    let v_id = vertices_label_rank_id_map.len() as i32;
+                    let v_id = vertices_label_rank_id_map.len();
                     vertices_label_rank_id_map.insert((start_v_label, start_v_rank), v_id);
                     v_id
                 };
                 let end_v_id = if vertices_label_rank_id_map.contains_key(&(end_v_label, end_v_rank)) {
                     *vertices_label_rank_id_map
                         .get(&(end_v_label, end_v_rank))
-                        .unwrap()
+                        .unwrap() as usize
                 } else {
-                    let v_id = vertices_label_rank_id_map.len() as i32;
+                    let v_id = vertices_label_rank_id_map.len();
                     vertices_label_rank_id_map.insert((end_v_label, end_v_rank), v_id);
                     v_id
                 };
@@ -652,7 +653,6 @@ impl DecodeUnit {
         } else {
             Err(IrError::InvalidCode("Pattern".to_string()))
         }
-
     }
 }
 
@@ -1649,10 +1649,12 @@ mod tests {
     fn test_encode_decode_rank_ranking_case17_vec_u8() {
         let (mut pattern, _) = build_pattern_rank_ranking_case17();
         pattern.rank_ranking();
+        println!("{:?}", pattern);
         let encoder = Encoder::init_by_pattern(&pattern, 4);
         let pattern_code1: Vec<u8> = pattern.encode_to(&encoder);
         let (mut pattern, _) = build_pattern_rank_ranking_case17();
         pattern.rank_ranking();
+        println!("{:?}", pattern);
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
         let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
@@ -1710,7 +1712,8 @@ mod tests {
         let extend_step_1 = build_extend_step_case2();
         let encoder = Encoder::init(2, 2, 2, 2);
         let extend_step_1_code: Vec<u8> = extend_step_1.encode_to(&encoder);
-        let extend_step_1_from_decode: ExtendStep = Cipher::decode_from(extend_step_1_code, &encoder).unwrap();
+        let extend_step_1_from_decode: ExtendStep =
+            Cipher::decode_from(extend_step_1_code, &encoder).unwrap();
         assert_eq!(extend_step_1.get_target_v_label(), extend_step_1_from_decode.get_target_v_label());
         assert_eq!(extend_step_1.get_extend_edges_num(), extend_step_1_from_decode.get_extend_edges_num());
         assert_eq!(
@@ -1744,7 +1747,8 @@ mod tests {
         let extend_step_1 = build_extend_step_case2();
         let encoder = Encoder::init(2, 2, 2, 2);
         let extend_step_1_code: AsciiString = extend_step_1.encode_to(&encoder);
-        let extend_step_1_from_decode: ExtendStep = Cipher::decode_from(extend_step_1_code, &encoder).unwrap();
+        let extend_step_1_from_decode: ExtendStep =
+            Cipher::decode_from(extend_step_1_code, &encoder).unwrap();
         assert_eq!(extend_step_1.get_target_v_label(), extend_step_1_from_decode.get_target_v_label());
         assert_eq!(extend_step_1.get_extend_edges_num(), extend_step_1_from_decode.get_extend_edges_num());
         assert_eq!(

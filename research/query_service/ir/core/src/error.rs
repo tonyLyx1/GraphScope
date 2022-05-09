@@ -44,7 +44,7 @@ pub enum IrError {
     // Catalog Errors
     EmptyPattern,
     FuzzyPattern,
-    InvalidCode(String)
+    InvalidCode(String),
 }
 
 pub type IrResult<T> = Result<T, IrError>;
@@ -73,7 +73,7 @@ impl fmt::Display for IrError {
             IrError::Unsupported(s) => write!(f, "{:?}: is not supported", s),
             IrError::EmptyPattern => write!(f, "init pattern from a empty Vector"),
             IrError::FuzzyPattern => write!(f, "the transformed pattern from pb message is fuzzy"),
-            IrError::InvalidCode(s) => write!(f, "the code for {:?} is invalid", s)
+            IrError::InvalidCode(s) => write!(f, "the code for {:?} is invalid", s),
         }
     }
 }

@@ -15,16 +15,17 @@
 
 use std::cmp::{max, Ordering};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
-
 use std::convert::TryFrom;
-use fast_math::log2;
+use std::iter::FromIterator;
 
-use crate::error::IrError;
+use fast_math::log2;
+use ir_common::generated::algebra as pb;
+use vec_map::VecMap;
+
 use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
 use crate::catalogue::pattern_meta::PatternMeta;
 use crate::catalogue::{PatternDirection, PatternId, PatternLabelId, PatternRankId};
-
-use ir_common::generated::algebra as pb;
+use crate::error::IrError;
 
 #[derive(Debug, Clone)]
 pub struct PatternVertex {
@@ -151,9 +152,9 @@ impl PatternEdge {
 #[derive(Debug, Clone)]
 pub struct Pattern {
     /// Key: edge id, Value: struct PatternEdge
-    edges: BTreeMap<PatternId, PatternEdge>,
+    edges: VecMap<PatternEdge>,
     /// Key: vertex id, Value: struct PatternVertex
-    vertices: BTreeMap<PatternId, PatternVertex>,
+    vertices: VecMap<PatternVertex>,
     /// Key: edge label id, Value: BTreeSet<edge id>
     edge_label_map: BTreeMap<PatternLabelId, BTreeSet<PatternId>>,
     /// Key: vertex label id, Value: BTreeSet<vertex id>
@@ -181,8 +182,8 @@ impl From<(PatternId, PatternLabelId)> for Pattern {
 impl From<PatternVertex> for Pattern {
     fn from(vertex: PatternVertex) -> Pattern {
         Pattern {
-            edges: BTreeMap::new(),
-            vertices: BTreeMap::from([(vertex.id, vertex.clone())]),
+            edges: VecMap::new(),
+            vertices: VecMap::from_iter([(vertex.id, vertex.clone())]),
             edge_label_map: BTreeMap::new(),
             vertex_label_map: BTreeMap::from([(vertex.label, BTreeSet::from([vertex.id]))]),
         }
@@ -195,8 +196,8 @@ impl TryFrom<Vec<PatternEdge>> for Pattern {
     fn try_from(edges: Vec<PatternEdge>) -> Result<Self, Self::Error> {
         if !edges.is_empty() {
             let mut new_pattern = Pattern {
-                edges: BTreeMap::new(),
-                vertices: BTreeMap::new(),
+                edges: VecMap::new(),
+                vertices: VecMap::new(),
                 edge_label_map: BTreeMap::new(),
                 vertex_label_map: BTreeMap::new(),
             };
@@ -208,8 +209,8 @@ impl TryFrom<Vec<PatternEdge>> for Pattern {
                     .entry(edge.label)
                     .or_insert(BTreeSet::new());
                 edge_set.insert(edge.id);
-                // Add or update the start & end vertex to the new Pattern
-                match new_pattern.vertices.get_mut(&edge.start_v_id) {
+                // Add or update the start vertex to the new Pattern
+                match new_pattern.vertices.get_mut(edge.start_v_id) {
                     // the start vertex existed, just update the connection info
                     Some(start_vertex) => {
                         start_vertex
@@ -249,9 +250,9 @@ impl TryFrom<Vec<PatternEdge>> for Pattern {
                         vertex_set.insert(edge.start_v_id);
                     }
                 }
-    
+
                 // Add or update the end vertex to the new Pattern
-                match new_pattern.vertices.get_mut(&edge.end_v_id) {
+                match new_pattern.vertices.get_mut(edge.end_v_id) {
                     // the end vertex existed, just update the connection info
                     Some(end_vertex) => {
                         end_vertex
@@ -301,7 +302,9 @@ impl TryFrom<Vec<PatternEdge>> for Pattern {
 
 impl TryFrom<(&pb::Pattern, &PatternMeta)> for Pattern {
     type Error = IrError;
-    fn try_from((pattern_message, pattern_meta):(&pb::Pattern, &PatternMeta)) -> Result<Self, Self::Error> {
+    fn try_from(
+        (pattern_message, pattern_meta): (&pb::Pattern, &PatternMeta),
+    ) -> Result<Self, Self::Error> {
         use ir_common::generated::common::name_or_id::Item as TagItem;
         use pb::pattern::binder::Item as BinderItem;
 
@@ -341,11 +344,10 @@ impl TryFrom<(&pb::Pattern, &PatternMeta)> for Pattern {
                         }
                         if let Some(TagItem::Name(edge_label_name)) = params.tables[0].item.as_ref() {
                             if let Some(edge_label_id) = pattern_meta.get_edge_id(edge_label_name) {
-                                let src_dst_vertex_pairs = pattern_meta.get_connect_vertices_of_e(edge_label_id);
+                                let src_dst_vertex_pairs =
+                                    pattern_meta.get_connect_vertices_of_e(edge_label_id);
                                 if i == 0 {
-
                                 } else if i == sentence.binders.len() - 1 {
-                                    
                                 }
                                 let src_vertex_id = assign_vertex_id;
                                 let dst_vertex_id = assign_vertex_id + 1;
@@ -364,7 +366,6 @@ impl TryFrom<(&pb::Pattern, &PatternMeta)> for Pattern {
                 } else {
                     return Err(IrError::FuzzyPattern);
                 }
-
             }
         }
         Pattern::try_from(pattern_edges)
@@ -374,12 +375,12 @@ impl TryFrom<(&pb::Pattern, &PatternMeta)> for Pattern {
 /// Methods to access the fields of a Pattern or get some info from Pattern
 impl Pattern {
     /// Get Edges References
-    pub fn get_edges(&self) -> &BTreeMap<PatternId, PatternEdge> {
+    pub fn get_edges(&self) -> &VecMap<PatternEdge> {
         &self.edges
     }
 
     /// Get Vertices References
-    pub fn get_vertices(&self) -> &BTreeMap<PatternId, PatternVertex> {
+    pub fn get_vertices(&self) -> &VecMap<PatternVertex> {
         &self.vertices
     }
 
@@ -395,25 +396,25 @@ impl Pattern {
 
     /// Get PatternEdge Reference from Edge ID
     pub fn get_edge_from_id(&self, edge_id: PatternId) -> Option<&PatternEdge> {
-        self.edges.get(&edge_id)
+        self.edges.get(edge_id)
     }
 
     /// Get PatternVertex Reference from Vertex ID
     pub fn get_vertex_from_id(&self, vertex_id: PatternId) -> Option<&PatternVertex> {
-        self.vertices.get(&vertex_id)
+        self.vertices.get(vertex_id)
     }
 
     pub fn get_edge_mut_from_id(&mut self, edge_id: PatternId) -> Option<&mut PatternEdge> {
-        self.edges.get_mut(&edge_id)
+        self.edges.get_mut(edge_id)
     }
 
     pub fn get_vertex_mut_from_id(&mut self, vertex_id: PatternId) -> Option<&mut PatternVertex> {
-        self.vertices.get_mut(&vertex_id)
+        self.vertices.get_mut(vertex_id)
     }
 
     /// Get Vertex Index from Vertex ID Reference
     pub fn get_vertex_rank(&self, v_id: PatternId) -> PatternRankId {
-        self.vertices.get(&v_id).unwrap().rank
+        self.vertices.get(v_id).unwrap().rank
     }
 
     /// [Public] Get the order of both start and end vertices of an edge
@@ -507,7 +508,7 @@ impl Pattern {
         let mut ordered_edges: Vec<PatternId> = self
             .edges
             .iter()
-            .map(|(edge_id, _)| *edge_id)
+            .map(|(edge_id, _)| edge_id)
             .collect();
         ordered_edges.sort_by(|e1_id, e2_id| self.cmp_edges(*e1_id, *e2_id));
         ordered_edges
@@ -519,8 +520,8 @@ impl Pattern {
         if e1_id == e2_id {
             return Ordering::Equal;
         }
-        let e1 = self.edges.get(&e1_id).unwrap();
-        let e2 = self.edges.get(&e2_id).unwrap();
+        let e1 = self.edges.get(e1_id).unwrap();
+        let e2 = self.edges.get(e2_id).unwrap();
         // Compare the label of starting vertex
         match e1.start_v_label.cmp(&e2.start_v_label) {
             Ordering::Less => return Ordering::Less,
@@ -590,7 +591,7 @@ impl Pattern {
             let mut current_max_v_id = vertex_vec[0];
             for v_id in vertex_vec.iter() {
                 let order = self.cmp_vertices_for_initial_rank(*v_id, current_max_v_id);
-                let vertex: &mut PatternVertex = self.vertices.get_mut(v_id).unwrap();
+                let vertex: &mut PatternVertex = self.vertices.get_mut(*v_id).unwrap();
                 match order {
                     Ordering::Greater => {
                         vertex_rank = vertex_rank_implicit;
@@ -614,8 +615,8 @@ impl Pattern {
         if v1_id == v2_id {
             return Ordering::Equal;
         }
-        let v1 = self.vertices.get(&v1_id).unwrap();
-        let v2 = self.vertices.get(&v2_id).unwrap();
+        let v1 = self.vertices.get(v1_id).unwrap();
+        let v2 = self.vertices.get(v2_id).unwrap();
         match v1.label.cmp(&v2.label) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
@@ -754,8 +755,8 @@ impl Pattern {
         if e1_id == e2_id {
             return Ordering::Equal;
         }
-        let e1 = self.edges.get(&e1_id).unwrap();
-        let e2 = self.edges.get(&e2_id).unwrap();
+        let e1 = self.edges.get(e1_id).unwrap();
+        let e2 = self.edges.get(e2_id).unwrap();
         // Compare the label of starting vertex
         match e1
             .get_start_vertex_label()
@@ -791,7 +792,7 @@ impl Pattern {
         // Initializde the visited Hashmap for all the vertices
         let mut visited_map: HashMap<PatternId, bool> = HashMap::new();
         for (v_id, _) in self.get_vertices().iter() {
-            visited_map.insert(*v_id, false);
+            visited_map.insert(v_id, false);
         }
         // Iteratively find a group of vertices sharing the same rank
         let same_rank_vertex_groups: Vec<Vec<PatternId>> = self.get_same_rank_vertex_groups();
@@ -985,7 +986,7 @@ impl Pattern {
         let mut equivalent_vertices = Vec::new();
         if let Some(vs_with_same_label) = self.vertex_label_map.get(&v_label) {
             for v_id in vs_with_same_label {
-                if let Some(vertex) = self.vertices.get(v_id) {
+                if let Some(vertex) = self.vertices.get(*v_id) {
                     if vertex.rank == v_rank {
                         equivalent_vertices.push(*v_id);
                     }
@@ -998,7 +999,7 @@ impl Pattern {
     /// Get the legal id for the future incoming vertex
     fn get_next_pattern_vertex_id(&self) -> PatternId {
         let mut new_vertex_id = self.vertices.len() as PatternId;
-        while self.vertices.contains_key(&new_vertex_id) {
+        while self.vertices.contains_key(new_vertex_id) {
             new_vertex_id += 1;
         }
         new_vertex_id
@@ -1007,7 +1008,7 @@ impl Pattern {
     /// Get the legal id for the future incoming vertex
     fn get_next_pattern_edge_id(&self) -> PatternId {
         let mut new_edge_id = self.edges.len() as PatternId;
-        while self.edges.contains_key(&new_edge_id) {
+        while self.edges.contains_key(new_edge_id) {
             new_edge_id += 1;
         }
         new_edge_id
@@ -1048,7 +1049,7 @@ impl Pattern {
                             end_v_id: new_pattern_vertex.id,
                             start_v_label: self
                                 .vertices
-                                .get(&vertices_can_use[i])
+                                .get(vertices_can_use[i])
                                 .unwrap()
                                 .label,
                             end_v_label: new_pattern_vertex.label,
@@ -1082,7 +1083,7 @@ impl Pattern {
                             start_v_label: new_pattern_vertex.label,
                             end_v_label: self
                                 .vertices
-                                .get(&vertices_can_use[i])
+                                .get(vertices_can_use[i])
                                 .unwrap()
                                 .label,
                         };
@@ -1203,21 +1204,21 @@ mod tests {
         let mut vertices_with_label_0_iter = vertices_with_label_0.iter();
         assert_eq!(*vertices_with_label_0_iter.next().unwrap(), 0);
         assert_eq!(*vertices_with_label_0_iter.next().unwrap(), 1);
-        let edge_0 = pattern_case1.edges.get(&0).unwrap();
+        let edge_0 = pattern_case1.edges.get(0).unwrap();
         assert_eq!(edge_0.id, 0);
         assert_eq!(edge_0.label, 0);
         assert_eq!(edge_0.start_v_id, 0);
         assert_eq!(edge_0.end_v_id, 1);
         assert_eq!(edge_0.start_v_label, 0);
         assert_eq!(edge_0.end_v_label, 0);
-        let edge_1 = pattern_case1.edges.get(&1).unwrap();
+        let edge_1 = pattern_case1.edges.get(1).unwrap();
         assert_eq!(edge_1.id, 1);
         assert_eq!(edge_1.label, 0);
         assert_eq!(edge_1.start_v_id, 1);
         assert_eq!(edge_1.end_v_id, 0);
         assert_eq!(edge_1.start_v_label, 0);
         assert_eq!(edge_1.end_v_label, 0);
-        let vertex_0 = pattern_case1.vertices.get(&0).unwrap();
+        let vertex_0 = pattern_case1.vertices.get(0).unwrap();
         assert_eq!(vertex_0.id, 0);
         assert_eq!(vertex_0.label, 0);
         assert_eq!(vertex_0.connect_edges.len(), 2);
@@ -1236,7 +1237,7 @@ mod tests {
         let mut v0_v1_connected_edges_iter = v0_v1_connected_edges.iter();
         assert_eq!(*v0_v1_connected_edges_iter.next().unwrap(), (0, PatternDirection::Out));
         assert_eq!(*v0_v1_connected_edges_iter.next().unwrap(), (1, PatternDirection::In));
-        let vertex_1 = pattern_case1.vertices.get(&1).unwrap();
+        let vertex_1 = pattern_case1.vertices.get(1).unwrap();
         assert_eq!(vertex_1.id, 1);
         assert_eq!(vertex_1.label, 0);
         assert_eq!(vertex_1.connect_edges.len(), 2);
@@ -1269,8 +1270,8 @@ mod tests {
         let pattern_case2 = build_pattern_case2();
         assert_eq!(pattern_after_extend.edges.len(), pattern_case2.edges.len());
         for i in 0..pattern_after_extend.edges.len() as PatternId {
-            let edge1 = pattern_after_extend.edges.get(&i).unwrap();
-            let edge2 = pattern_case2.edges.get(&i).unwrap();
+            let edge1 = pattern_after_extend.edges.get(i).unwrap();
+            let edge2 = pattern_case2.edges.get(i).unwrap();
             assert_eq!(edge1.id, edge2.id);
             assert_eq!(edge1.label, edge2.label);
             assert_eq!(edge1.start_v_id, edge2.start_v_id);
@@ -1280,8 +1281,8 @@ mod tests {
         }
         assert_eq!(pattern_after_extend.edges.len(), pattern_case2.edges.len());
         for i in 0..pattern_after_extend.vertices.len() as PatternId {
-            let vertex1 = pattern_after_extend.vertices.get(&i).unwrap();
-            let vertex2 = pattern_after_extend.vertices.get(&i).unwrap();
+            let vertex1 = pattern_after_extend.vertices.get(i).unwrap();
+            let vertex2 = pattern_after_extend.vertices.get(i).unwrap();
             assert_eq!(vertex1.id, vertex2.id);
             assert_eq!(vertex1.label, vertex2.label);
             assert_eq!(vertex1.rank, vertex2.rank);
@@ -1766,8 +1767,8 @@ mod tests {
         let mut pattern = build_pattern_case1();
         pattern.set_initial_rank();
         let vertices = pattern.get_vertices();
-        assert_eq!(vertices.get(&0).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&1).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(0).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(1).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1775,9 +1776,9 @@ mod tests {
         let mut pattern = build_pattern_case2();
         pattern.set_initial_rank();
         let vertices = pattern.get_vertices();
-        assert_eq!(vertices.get(&0).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&1).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&2).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(0).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(1).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(2).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1785,10 +1786,10 @@ mod tests {
         let mut pattern = build_pattern_case3();
         pattern.set_initial_rank();
         let vertices = pattern.get_vertices();
-        assert_eq!(vertices.get(&0).unwrap().get_rank(), 1);
-        assert_eq!(vertices.get(&1).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&2).unwrap().get_rank(), 1);
-        assert_eq!(vertices.get(&3).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(0).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(1).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(2).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(3).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1796,10 +1797,10 @@ mod tests {
         let mut pattern = build_pattern_case4();
         pattern.set_initial_rank();
         let vertices = pattern.get_vertices();
-        assert_eq!(vertices.get(&0).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&1).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&2).unwrap().get_rank(), 1);
-        assert_eq!(vertices.get(&3).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(0).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(1).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(2).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(3).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1812,20 +1813,20 @@ mod tests {
         let id_vec_d: Vec<PatternId> = vec![1000];
         let vertices = pattern.get_vertices();
         // A
-        assert_eq!(vertices.get(&id_vec_a[0]).unwrap().get_rank(), 1);
-        assert_eq!(vertices.get(&id_vec_a[1]).unwrap().get_rank(), 3);
-        assert_eq!(vertices.get(&id_vec_a[2]).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&id_vec_a[3]).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(id_vec_a[0]).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(id_vec_a[1]).unwrap().get_rank(), 3);
+        assert_eq!(vertices.get(id_vec_a[2]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_a[3]).unwrap().get_rank(), 1);
         // B
-        assert_eq!(vertices.get(&id_vec_b[0]).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&id_vec_b[1]).unwrap().get_rank(), 2);
-        assert_eq!(vertices.get(&id_vec_b[2]).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(id_vec_b[0]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_b[1]).unwrap().get_rank(), 2);
+        assert_eq!(vertices.get(id_vec_b[2]).unwrap().get_rank(), 1);
         // C
-        assert_eq!(vertices.get(&id_vec_c[0]).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&id_vec_c[1]).unwrap().get_rank(), 2);
-        assert_eq!(vertices.get(&id_vec_c[2]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_c[0]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_c[1]).unwrap().get_rank(), 2);
+        assert_eq!(vertices.get(id_vec_c[2]).unwrap().get_rank(), 0);
         // D
-        assert_eq!(vertices.get(&id_vec_d[0]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_d[0]).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1833,8 +1834,8 @@ mod tests {
         let mut pattern = build_pattern_case1();
         pattern.rank_ranking();
         let vertices = pattern.get_vertices();
-        assert_eq!(vertices.get(&0).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&1).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(0).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(1).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1842,9 +1843,9 @@ mod tests {
         let mut pattern = build_pattern_case2();
         pattern.rank_ranking();
         let vertices = pattern.get_vertices();
-        assert_eq!(vertices.get(&0).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&1).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&2).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(0).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(1).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(2).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1852,10 +1853,10 @@ mod tests {
         let mut pattern = build_pattern_case3();
         pattern.rank_ranking();
         let vertices = pattern.get_vertices();
-        assert_eq!(vertices.get(&0).unwrap().get_rank(), 1);
-        assert_eq!(vertices.get(&1).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&2).unwrap().get_rank(), 1);
-        assert_eq!(vertices.get(&3).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(0).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(1).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(2).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(3).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1863,10 +1864,10 @@ mod tests {
         let mut pattern = build_pattern_case4();
         pattern.rank_ranking();
         let vertices = pattern.get_vertices();
-        assert_eq!(vertices.get(&0).unwrap().get_rank(), 1);
-        assert_eq!(vertices.get(&1).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&2).unwrap().get_rank(), 1);
-        assert_eq!(vertices.get(&3).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(0).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(1).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(2).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(3).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1879,20 +1880,20 @@ mod tests {
         let id_vec_d: Vec<PatternId> = vec![1000];
         let vertices = pattern.get_vertices();
         // A
-        assert_eq!(vertices.get(&id_vec_a[0]).unwrap().get_rank(), 1);
-        assert_eq!(vertices.get(&id_vec_a[1]).unwrap().get_rank(), 3);
-        assert_eq!(vertices.get(&id_vec_a[2]).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&id_vec_a[3]).unwrap().get_rank(), 2);
+        assert_eq!(vertices.get(id_vec_a[0]).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(id_vec_a[1]).unwrap().get_rank(), 3);
+        assert_eq!(vertices.get(id_vec_a[2]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_a[3]).unwrap().get_rank(), 2);
         // B
-        assert_eq!(vertices.get(&id_vec_b[0]).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&id_vec_b[1]).unwrap().get_rank(), 2);
-        assert_eq!(vertices.get(&id_vec_b[2]).unwrap().get_rank(), 1);
+        assert_eq!(vertices.get(id_vec_b[0]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_b[1]).unwrap().get_rank(), 2);
+        assert_eq!(vertices.get(id_vec_b[2]).unwrap().get_rank(), 1);
         // C
-        assert_eq!(vertices.get(&id_vec_c[0]).unwrap().get_rank(), 0);
-        assert_eq!(vertices.get(&id_vec_c[1]).unwrap().get_rank(), 2);
-        assert_eq!(vertices.get(&id_vec_c[2]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_c[0]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_c[1]).unwrap().get_rank(), 2);
+        assert_eq!(vertices.get(id_vec_c[2]).unwrap().get_rank(), 0);
         // D
-        assert_eq!(vertices.get(&id_vec_d[0]).unwrap().get_rank(), 0);
+        assert_eq!(vertices.get(id_vec_d[0]).unwrap().get_rank(), 0);
     }
 
     #[test]
@@ -1902,14 +1903,14 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -1923,14 +1924,14 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -1944,21 +1945,21 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -1972,21 +1973,21 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A2").unwrap())
+                .get(*vertex_id_map.get("A2").unwrap())
                 .unwrap()
                 .get_rank(),
             1
@@ -2000,21 +2001,21 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A2").unwrap())
+                .get(*vertex_id_map.get("A2").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2028,21 +2029,21 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2056,21 +2057,21 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2084,28 +2085,28 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B1").unwrap())
+                .get(*vertex_id_map.get("B1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2119,28 +2120,28 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B1").unwrap())
+                .get(*vertex_id_map.get("B1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2154,28 +2155,28 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B1").unwrap())
+                .get(*vertex_id_map.get("B1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2189,35 +2190,35 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B1").unwrap())
+                .get(*vertex_id_map.get("B1").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B2").unwrap())
+                .get(*vertex_id_map.get("B2").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2231,42 +2232,42 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B1").unwrap())
+                .get(*vertex_id_map.get("B1").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B2").unwrap())
+                .get(*vertex_id_map.get("B2").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B3").unwrap())
+                .get(*vertex_id_map.get("B3").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2280,42 +2281,42 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A2").unwrap())
+                .get(*vertex_id_map.get("A2").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B1").unwrap())
+                .get(*vertex_id_map.get("B1").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B2").unwrap())
+                .get(*vertex_id_map.get("B2").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2329,49 +2330,49 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B1").unwrap())
+                .get(*vertex_id_map.get("B1").unwrap())
                 .unwrap()
                 .get_rank(),
             3
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B2").unwrap())
+                .get(*vertex_id_map.get("B2").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B3").unwrap())
+                .get(*vertex_id_map.get("B3").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("C0").unwrap())
+                .get(*vertex_id_map.get("C0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2385,63 +2386,63 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A2").unwrap())
+                .get(*vertex_id_map.get("A2").unwrap())
                 .unwrap()
                 .get_rank(),
             3
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A3").unwrap())
+                .get(*vertex_id_map.get("A3").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B1").unwrap())
+                .get(*vertex_id_map.get("B1").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B2").unwrap())
+                .get(*vertex_id_map.get("B2").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("C0").unwrap())
+                .get(*vertex_id_map.get("C0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("C1").unwrap())
+                .get(*vertex_id_map.get("C1").unwrap())
                 .unwrap()
                 .get_rank(),
             1
@@ -2455,70 +2456,70 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A2").unwrap())
+                .get(*vertex_id_map.get("A2").unwrap())
                 .unwrap()
                 .get_rank(),
             3
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A3").unwrap())
+                .get(*vertex_id_map.get("A3").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B0").unwrap())
+                .get(*vertex_id_map.get("B0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B1").unwrap())
+                .get(*vertex_id_map.get("B1").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("B2").unwrap())
+                .get(*vertex_id_map.get("B2").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("C0").unwrap())
+                .get(*vertex_id_map.get("C0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("C1").unwrap())
+                .get(*vertex_id_map.get("C1").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("D0").unwrap())
+                .get(*vertex_id_map.get("D0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2532,42 +2533,42 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             1
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             3
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A2").unwrap())
+                .get(*vertex_id_map.get("A2").unwrap())
                 .unwrap()
                 .get_rank(),
             5
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A3").unwrap())
+                .get(*vertex_id_map.get("A3").unwrap())
                 .unwrap()
                 .get_rank(),
             4
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A4").unwrap())
+                .get(*vertex_id_map.get("A4").unwrap())
                 .unwrap()
                 .get_rank(),
             2
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A5").unwrap())
+                .get(*vertex_id_map.get("A5").unwrap())
                 .unwrap()
                 .get_rank(),
             0
@@ -2581,42 +2582,42 @@ mod tests {
         let vertices = pattern.get_vertices();
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A0").unwrap())
+                .get(*vertex_id_map.get("A0").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A1").unwrap())
+                .get(*vertex_id_map.get("A1").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A2").unwrap())
+                .get(*vertex_id_map.get("A2").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A3").unwrap())
+                .get(*vertex_id_map.get("A3").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A4").unwrap())
+                .get(*vertex_id_map.get("A4").unwrap())
                 .unwrap()
                 .get_rank(),
             0
         );
         assert_eq!(
             vertices
-                .get(vertex_id_map.get("A5").unwrap())
+                .get(*vertex_id_map.get("A5").unwrap())
                 .unwrap()
                 .get_rank(),
             0
