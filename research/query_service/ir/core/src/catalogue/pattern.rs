@@ -542,9 +542,13 @@ impl Pattern {
     /// 
     /// Step-4: Set Accurate Index Based on Iterative Traversal
     pub fn index_ranking(&mut self) {
+        // Step-1: Get the Neighbor Edges for All Vertices, Sorted Simply By Labels
         let mut vertex_neighbor_edges_map: HashMap<PatternId, Vec<(PatternId, PatternId)>> = self.get_vertex_neighbor_edges();
+        // Step-2: Set Initial Index Based on Local Information of Vertices (labels, in/out degree, neighboring edges info)
         self.set_initial_index(&vertex_neighbor_edges_map);
+        // Step-3: Update the Neighbor Edges for All Vertices, Sorted now with Initial Indices
         self.update_vertex_neighbor_edges_map(&mut vertex_neighbor_edges_map);
+        // Step-4: Set Accurate Index Based on Iterative Traversal
         self.set_accurate_index(&vertex_neighbor_edges_map);
     }
 
@@ -2410,6 +2414,104 @@ mod tests {
     #[test]
     fn index_ranking_case17() {
         let (mut pattern, vertex_id_map) = build_pattern_index_ranking_case17();
+        pattern.index_ranking();
+        let vertices = pattern.get_vertices();
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A0").unwrap())
+                .unwrap()
+                .get_index(),
+            1
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A1").unwrap())
+                .unwrap()
+                .get_index(),
+            3
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A2").unwrap())
+                .unwrap()
+                .get_index(),
+            5
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A3").unwrap())
+                .unwrap()
+                .get_index(),
+            4
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A4").unwrap())
+                .unwrap()
+                .get_index(),
+            2
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A5").unwrap())
+                .unwrap()
+                .get_index(),
+            0
+        );
+    }
+
+    #[test]
+    fn index_ranking_case17_special_id_situation_1() {
+        let (mut pattern, vertex_id_map) = build_pattern_index_ranking_case17_special_id_situation_1();
+        pattern.index_ranking();
+        let vertices = pattern.get_vertices();
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A0").unwrap())
+                .unwrap()
+                .get_index(),
+            1
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A1").unwrap())
+                .unwrap()
+                .get_index(),
+            3
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A2").unwrap())
+                .unwrap()
+                .get_index(),
+            5
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A3").unwrap())
+                .unwrap()
+                .get_index(),
+            4
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A4").unwrap())
+                .unwrap()
+                .get_index(),
+            2
+        );
+        assert_eq!(
+            vertices
+                .get(vertex_id_map.get("A5").unwrap())
+                .unwrap()
+                .get_index(),
+            0
+        );
+    }
+
+    #[test]
+    fn index_ranking_case17_special_id_situation_2() {
+        let (mut pattern, vertex_id_map) = build_pattern_index_ranking_case17_special_id_situation_2();
         pattern.index_ranking();
         let vertices = pattern.get_vertices();
         assert_eq!(
