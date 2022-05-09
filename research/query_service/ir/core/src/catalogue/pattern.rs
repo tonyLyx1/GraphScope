@@ -19,7 +19,7 @@ use std::convert::TryFrom;
 use std::iter::FromIterator;
 
 use ir_common::generated::algebra as pb;
-use vec_map::{Entry, OccupiedEntry, VacantEntry, VecMap};
+use vec_map::VecMap;
 
 use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
 use crate::catalogue::pattern_meta::PatternMeta;
