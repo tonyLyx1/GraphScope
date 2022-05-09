@@ -19,7 +19,7 @@ use std::convert::TryFrom;
 use std::iter::FromIterator;
 
 use ir_common::generated::algebra as pb;
-use vec_map::VecMap;
+use vec_map::{Entry, OccupiedEntry, VacantEntry, VecMap};
 
 use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
 use crate::catalogue::pattern_meta::PatternMeta;
@@ -209,88 +209,59 @@ impl TryFrom<Vec<PatternEdge>> for Pattern {
                     .or_insert(BTreeSet::new());
                 edge_set.insert(edge.id);
                 // Add or update the start vertex to the new Pattern
-                match new_pattern.vertices.get_mut(edge.start_v_id) {
-                    // the start vertex existed, just update the connection info
-                    Some(start_vertex) => {
-                        start_vertex
-                            .connect_edges
-                            .insert(edge.id, (edge.end_v_id, PatternDirection::Out));
-                        let start_vertex_connect_vertices_vec = start_vertex
-                            .connect_vertices
-                            .entry(edge.end_v_id)
-                            .or_insert(Vec::new());
-                        start_vertex_connect_vertices_vec.push((edge.id, PatternDirection::Out));
-                        start_vertex.out_degree += 1;
-                    }
-                    // the start vertex not existed, add to the new Pattern
-                    None => {
-                        new_pattern.vertices.insert(
-                            edge.start_v_id,
-                            PatternVertex {
-                                id: edge.start_v_id,
-                                label: edge.start_v_label,
-                                rank: 0,
-                                connect_edges: BTreeMap::from([(
-                                    edge.id,
-                                    (edge.end_v_id, PatternDirection::Out),
-                                )]),
-                                connect_vertices: BTreeMap::from([(
-                                    edge.end_v_id,
-                                    vec![(edge.id, PatternDirection::Out)],
-                                )]),
-                                out_degree: 1,
-                                in_degree: 0,
-                            },
-                        );
-                        let vertex_set = new_pattern
-                            .vertex_label_map
-                            .entry(edge.start_v_label)
-                            .or_insert(BTreeSet::new());
-                        vertex_set.insert(edge.start_v_id);
-                    }
-                }
-
+                let start_vertex = new_pattern
+                    .vertices
+                    .entry(edge.start_v_id)
+                    .or_insert(PatternVertex {
+                        id: edge.start_v_id,
+                        label: edge.start_v_label,
+                        rank: 0,
+                        connect_edges: BTreeMap::new(),
+                        connect_vertices: BTreeMap::new(),
+                        out_degree: 0,
+                        in_degree: 0,
+                    });
+                start_vertex
+                    .connect_edges
+                    .insert(edge.id, (edge.end_v_id, PatternDirection::Out));
+                start_vertex
+                    .connect_vertices
+                    .entry(edge.end_v_id)
+                    .or_insert(Vec::new())
+                    .push((edge.id, PatternDirection::Out));
+                start_vertex.out_degree += 1;
+                new_pattern
+                    .vertex_label_map
+                    .entry(edge.start_v_label)
+                    .or_insert(BTreeSet::new())
+                    .insert(edge.start_v_id);
                 // Add or update the end vertex to the new Pattern
-                match new_pattern.vertices.get_mut(edge.end_v_id) {
-                    // the end vertex existed, just update the connection info
-                    Some(end_vertex) => {
-                        end_vertex
-                            .connect_edges
-                            .insert(edge.id, (edge.start_v_id, PatternDirection::In));
-                        let end_vertex_connect_vertices_vec = end_vertex
-                            .connect_vertices
-                            .entry(edge.start_v_id)
-                            .or_insert(Vec::new());
-                        end_vertex_connect_vertices_vec.push((edge.id, PatternDirection::In));
-                        end_vertex.in_degree += 1;
-                    }
-                    // the end vertex not existed, add the new Pattern
-                    None => {
-                        new_pattern.vertices.insert(
-                            edge.end_v_id,
-                            PatternVertex {
-                                id: edge.end_v_id,
-                                label: edge.end_v_label,
-                                rank: 0,
-                                connect_edges: BTreeMap::from([(
-                                    edge.id,
-                                    (edge.start_v_id, PatternDirection::In),
-                                )]),
-                                connect_vertices: BTreeMap::from([(
-                                    edge.start_v_id,
-                                    vec![(edge.id, PatternDirection::In)],
-                                )]),
-                                out_degree: 0,
-                                in_degree: 1,
-                            },
-                        );
-                        let vertex_set = new_pattern
-                            .vertex_label_map
-                            .entry(edge.end_v_label)
-                            .or_insert(BTreeSet::new());
-                        vertex_set.insert(edge.end_v_id);
-                    }
-                }
+                let end_vertex = new_pattern
+                    .vertices
+                    .entry(edge.end_v_id)
+                    .or_insert(PatternVertex {
+                        id: edge.end_v_id,
+                        label: edge.end_v_label,
+                        rank: 0,
+                        connect_edges: BTreeMap::new(),
+                        connect_vertices: BTreeMap::new(),
+                        out_degree: 0,
+                        in_degree: 0,
+                    });
+                end_vertex
+                    .connect_edges
+                    .insert(edge.id, (edge.start_v_id, PatternDirection::In));
+                end_vertex
+                    .connect_vertices
+                    .entry(edge.start_v_id)
+                    .or_insert(Vec::new())
+                    .push((edge.id, PatternDirection::In));
+                end_vertex.in_degree += 1;
+                new_pattern
+                    .vertex_label_map
+                    .entry(edge.end_v_label)
+                    .or_insert(BTreeSet::new())
+                    .insert(edge.end_v_id);
             }
             Ok(new_pattern)
         } else {
@@ -498,7 +469,7 @@ impl Pattern {
         let mut min_rank_bit_num: usize = 1;
         for (_, value) in self.vertex_label_map.iter() {
             let same_label_vertex_num = value.len() as u64;
-            let mut rank_bit_num= 1;
+            let mut rank_bit_num = 1;
             while same_label_vertex_num >> rank_bit_num > 0 {
                 rank_bit_num += 1;
             }
