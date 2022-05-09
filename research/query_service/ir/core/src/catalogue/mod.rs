@@ -13,26 +13,29 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
-use std::io;
+type PatternId = i32;
+type PatternLabelId = ir_common::KeyId;
+type PatternRankId = i32;
 
-pub use crate::plan::ffi::*;
-
-pub mod catalogue;
-pub mod error;
-pub mod plan;
-
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate log;
-
-pub trait JsonIO {
-    /// Write the logical plan to a json via the given `writer`.
-    fn into_json<W: io::Write>(self, writer: W) -> io::Result<()>;
-
-    /// Read the logical plan from a json via the given `reader`
-    fn from_json<R: io::Read>(reader: R) -> io::Result<Self>
-    where
-        Self: Sized;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PatternDirection {
+    Out = 0,
+    In,
 }
+
+impl Into<u8> for PatternDirection {
+    fn into(self) -> u8 {
+        match self {
+            PatternDirection::Out => 0,
+            PatternDirection::In => 1,
+        }
+    }
+}
+
+pub mod codec;
+pub mod extend_step;
+pub mod pattern;
+pub mod pattern_meta;
+
+#[cfg(test)]
+pub(crate) mod test_cases;

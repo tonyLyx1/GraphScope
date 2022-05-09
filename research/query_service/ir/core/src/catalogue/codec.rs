@@ -19,10 +19,10 @@ use ascii::AsciiChar;
 use ascii::AsciiString;
 use ascii::ToAsciiChar;
 
-use crate::extend_step::{ExtendEdge, ExtendStep};
-use crate::pattern::Pattern;
-use crate::pattern::PatternEdge;
-use crate::Direction;
+use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
+use crate::catalogue::pattern::Pattern;
+use crate::catalogue::pattern::PatternEdge;
+use crate::catalogue::PatternDirection;
 
 pub trait Cipher<T> {
     fn encode_to(&self, encoder: &Encoder) -> T;
@@ -86,9 +86,13 @@ impl Cipher<AsciiString> for ExtendStep {
 /// Contains the bit number that each variable in the encoding unit occupies
 #[derive(Debug, Clone)]
 pub struct Encoder {
+    // Bit Number for Edge Label Storage
     edge_label_bit_num: usize,
+    // Bit Number for Vertex Label Storage
     vertex_label_bit_num: usize,
+    // Bit Number for Edge Direction Storage
     direction_bit_num: usize,
+    // Bit Number for Vertex Index Storage
     vertex_index_bit_num: usize,
 }
 
@@ -589,7 +593,7 @@ impl DecodeUnit {
         }
         let mut extend_edges = Vec::with_capacity(decode_vec.len() / 4);
         for i in (0..decode_vec.len() - 4).step_by(4) {
-            let dir = if decode_vec[i] == 0 { Direction::Out } else { Direction::In };
+            let dir = if decode_vec[i] == 0 { PatternDirection::Out } else { PatternDirection::In };
             let edge_label = decode_vec[i + 1];
             let start_v_index = decode_vec[i + 2];
             let start_v_label = decode_vec[i + 3];
@@ -656,9 +660,10 @@ impl DecodeUnit {
 mod tests {
     use ascii::{self, AsciiString, ToAsciiChar};
 
-    use crate::codec::*;
-    use crate::pattern::*;
-    use crate::test_cases::*;
+    use crate::catalogue::codec::*;
+    use crate::catalogue::pattern::*;
+    use crate::catalogue::test_cases::extend_step_cases::*;
+    use crate::catalogue::test_cases::pattern_cases::*;
 
     /// ### Generate AsciiString from Vector
     fn generate_asciistring_from_vec(vec: &[u8]) -> AsciiString {

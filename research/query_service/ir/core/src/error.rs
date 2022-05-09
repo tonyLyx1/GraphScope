@@ -89,3 +89,40 @@ impl From<ExprError> for IrError {
         Self::ParseExprError(err)
     }
 }
+
+/// Record any error while using Catalogue
+#[derive(Debug, Clone)]
+pub enum CatalogueError {
+    // Pattern Elements Error
+    VertexNotExist(NameOrId),
+    EdgeNotExist(NameOrId),
+
+    // // Operation Error
+    // IndexRankError(String),
+    // ExtendStepError(String),
+    // EncodeError(String),
+    // DecodeError(String),
+
+    // Common Errors
+    Unsupported(String),
+}
+
+pub type CatalogueResult<T> = Result<T, CatalogueError>;
+
+impl fmt::Display for CatalogueError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            CatalogueError::VertexNotExist(v_id) => {
+                write!(f, "Vertex with ID {:?} does not exist", v_id)
+            },
+            CatalogueError::EdgeNotExist(e_id) => {
+                write!(f, "Edge with ID {:?} does not exist", e_id)
+            },
+            CatalogueError::Unsupported(s) => {
+                write!(f, "{:?}: is not supported", s)
+            },
+        }
+    }
+}
+
+impl std::error::Error for CatalogueError {}
