@@ -53,6 +53,6 @@ pub fn build_ldbc_pattern_case1() -> Pattern {
     pattern
         .get_vertex_mut_from_id(1)
         .unwrap()
-        .set_index(1);
+        .set_rankid(1);
     pattern
 }

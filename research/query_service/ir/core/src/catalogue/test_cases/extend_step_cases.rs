@@ -20,8 +20,8 @@ use crate::catalogue::PatternDirection;
 ///         B
 ///       /   \
 ///      A     A
-/// The left A has label id 0 and index 0
-/// The right A also has label id 0 and index 0, the two A's are equivalent
+/// The left A has label id 0 and rankId 0
+/// The right A also has label id 0 and rankId 0, the two A's are equivalent
 /// The target vertex is B with label id 1
 /// The two extend edges are both with edge id 1
 /// pattern_case1 + extend_step_case1 = pattern_case2
@@ -39,7 +39,7 @@ pub fn build_extend_step_case1() -> ExtendStep {
 /// A: 1, B: 2, C: 3
 /// Edge Label Map:
 /// A->C: 1, B->C: 2
-/// The left A has index 0 and the middle A has index 1
+/// The left A has rankId 0 and the middle A has rankId 1
 pub fn build_extend_step_case2() -> ExtendStep {
     let target_v_label = 3;
     let extend_edge_1 = ExtendEdge::new(1, 0, 1, PatternDirection::Out);

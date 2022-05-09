@@ -183,7 +183,7 @@ pub fn build_modern_pattern_case3() -> Pattern {
     pattern
         .get_vertex_mut_from_id(1)
         .unwrap()
-        .set_index(1);
+        .set_rankid(1);
     pattern
 }
 
@@ -199,13 +199,13 @@ fn gen_edge_label_map(edges: Vec<String>) -> HashMap<String, PatternLabelId> {
     let mut values: Vec<PatternLabelId> = (0..=255).collect();
     values.shuffle(&mut rng);
     let mut edge_label_map: HashMap<String, PatternLabelId> = HashMap::new();
-    let mut index = 0;
+    let mut rankid = 0;
     for edge in edges {
-        if index >= values.len() {
-            panic!("Error in gen_edge_label_map: index of out of scope");
+        if rankid >= values.len() {
+            panic!("Error in gen_edge_label_map: rankid of out of scope");
         }
-        edge_label_map.insert(edge, values[index]);
-        index += 1;
+        edge_label_map.insert(edge, values[rankid]);
+        rankid += 1;
     }
 
     edge_label_map
@@ -216,7 +216,7 @@ fn gen_id() -> PatternId {
     (rng.gen::<PatternId>()).abs()
 }
 
-pub fn build_pattern_index_ranking_case1() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case1() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -235,7 +235,7 @@ pub fn build_pattern_index_ranking_case1() -> (Pattern, HashMap<String, PatternI
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case2() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case2() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -264,7 +264,7 @@ pub fn build_pattern_index_ranking_case2() -> (Pattern, HashMap<String, PatternI
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case3() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case3() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -295,7 +295,7 @@ pub fn build_pattern_index_ranking_case3() -> (Pattern, HashMap<String, PatternI
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case4() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case4() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -334,7 +334,7 @@ pub fn build_pattern_index_ranking_case4() -> (Pattern, HashMap<String, PatternI
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case5() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case5() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -373,7 +373,7 @@ pub fn build_pattern_index_ranking_case5() -> (Pattern, HashMap<String, PatternI
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case6() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case6() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -420,7 +420,7 @@ pub fn build_pattern_index_ranking_case6() -> (Pattern, HashMap<String, PatternI
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case7() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case7() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -467,7 +467,7 @@ pub fn build_pattern_index_ranking_case7() -> (Pattern, HashMap<String, PatternI
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case8() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case8() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -515,7 +515,7 @@ pub fn build_pattern_index_ranking_case8() -> (Pattern, HashMap<String, PatternI
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case9() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case9() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -571,7 +571,7 @@ pub fn build_pattern_index_ranking_case9() -> (Pattern, HashMap<String, PatternI
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case10() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case10() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -635,7 +635,7 @@ pub fn build_pattern_index_ranking_case10() -> (Pattern, HashMap<String, Pattern
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case11() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case11() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -708,7 +708,7 @@ pub fn build_pattern_index_ranking_case11() -> (Pattern, HashMap<String, Pattern
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case12() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case12() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -790,7 +790,7 @@ pub fn build_pattern_index_ranking_case12() -> (Pattern, HashMap<String, Pattern
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case13() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case13() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> = gen_edge_label_map(vec![
@@ -876,7 +876,7 @@ pub fn build_pattern_index_ranking_case13() -> (Pattern, HashMap<String, Pattern
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case14() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case14() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> = gen_edge_label_map(vec![
@@ -972,7 +972,7 @@ pub fn build_pattern_index_ranking_case14() -> (Pattern, HashMap<String, Pattern
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case15() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case15() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -1066,7 +1066,7 @@ pub fn build_pattern_index_ranking_case15() -> (Pattern, HashMap<String, Pattern
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case16() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case16() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> = gen_edge_label_map(vec![
@@ -1174,7 +1174,7 @@ pub fn build_pattern_index_ranking_case16() -> (Pattern, HashMap<String, Pattern
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case17() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case17() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
@@ -1231,7 +1231,7 @@ pub fn build_pattern_index_ranking_case17() -> (Pattern, HashMap<String, Pattern
     (Pattern::from(pattern_vec), vertex_id_map)
 }
 
-pub fn build_pattern_index_ranking_case18() -> (Pattern, HashMap<String, PatternId>) {
+pub fn build_pattern_rankid_ranking_case18() -> (Pattern, HashMap<String, PatternId>) {
     let mut vertex_label_map: HashMap<String, PatternLabelId> = HashMap::new();
     let mut vertex_id_map: HashMap<String, PatternId> = HashMap::new();
     let edge_label_map: HashMap<String, PatternLabelId> =
