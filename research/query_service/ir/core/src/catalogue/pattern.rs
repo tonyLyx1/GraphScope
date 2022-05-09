@@ -19,6 +19,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::convert::TryFrom;
 use fast_math::log2;
 
+use crate::error::IrError;
 use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
 use crate::catalogue::pattern_meta::PatternMeta;
 use crate::catalogue::{PatternDirection, PatternId, PatternLabelId, PatternRankId};
@@ -189,120 +190,118 @@ impl From<PatternVertex> for Pattern {
 }
 
 /// Initialize a Pattern from a vertor of Pattern Edges
-impl From<Vec<PatternEdge>> for Pattern {
-    fn from(edges: Vec<PatternEdge>) -> Pattern {
-        if edges.len() == 0 {
-            panic!(
-                "There should be at least one pattern edge to get a pattern. 
-                   To get a pattern with single vertex, it shoud call from Pattern Vertex"
-            )
-        }
-        let mut new_pattern = Pattern {
-            edges: BTreeMap::new(),
-            vertices: BTreeMap::new(),
-            edge_label_map: BTreeMap::new(),
-            vertex_label_map: BTreeMap::new(),
-        };
-        for edge in edges {
-            // Add the new Pattern Edge to the new Pattern
-            new_pattern.edges.insert(edge.id, edge);
-            let edge_set = new_pattern
-                .edge_label_map
-                .entry(edge.label)
-                .or_insert(BTreeSet::new());
-            edge_set.insert(edge.id);
-            // Add or update the start & end vertex to the new Pattern
-            match new_pattern.vertices.get_mut(&edge.start_v_id) {
-                // the start vertex existed, just update the connection info
-                Some(start_vertex) => {
-                    start_vertex
-                        .connect_edges
-                        .insert(edge.id, (edge.end_v_id, PatternDirection::Out));
-                    let start_vertex_connect_vertices_vec = start_vertex
-                        .connect_vertices
-                        .entry(edge.end_v_id)
-                        .or_insert(Vec::new());
-                    start_vertex_connect_vertices_vec.push((edge.id, PatternDirection::Out));
-                    start_vertex.out_degree += 1;
+impl TryFrom<Vec<PatternEdge>> for Pattern {
+    type Error = IrError;
+    fn try_from(edges: Vec<PatternEdge>) -> Result<Self, Self::Error> {
+        if !edges.is_empty() {
+            let mut new_pattern = Pattern {
+                edges: BTreeMap::new(),
+                vertices: BTreeMap::new(),
+                edge_label_map: BTreeMap::new(),
+                vertex_label_map: BTreeMap::new(),
+            };
+            for edge in edges {
+                // Add the new Pattern Edge to the new Pattern
+                new_pattern.edges.insert(edge.id, edge);
+                let edge_set = new_pattern
+                    .edge_label_map
+                    .entry(edge.label)
+                    .or_insert(BTreeSet::new());
+                edge_set.insert(edge.id);
+                // Add or update the start & end vertex to the new Pattern
+                match new_pattern.vertices.get_mut(&edge.start_v_id) {
+                    // the start vertex existed, just update the connection info
+                    Some(start_vertex) => {
+                        start_vertex
+                            .connect_edges
+                            .insert(edge.id, (edge.end_v_id, PatternDirection::Out));
+                        let start_vertex_connect_vertices_vec = start_vertex
+                            .connect_vertices
+                            .entry(edge.end_v_id)
+                            .or_insert(Vec::new());
+                        start_vertex_connect_vertices_vec.push((edge.id, PatternDirection::Out));
+                        start_vertex.out_degree += 1;
+                    }
+                    // the start vertex not existed, add to the new Pattern
+                    None => {
+                        new_pattern.vertices.insert(
+                            edge.start_v_id,
+                            PatternVertex {
+                                id: edge.start_v_id,
+                                label: edge.start_v_label,
+                                rank: 0,
+                                connect_edges: BTreeMap::from([(
+                                    edge.id,
+                                    (edge.end_v_id, PatternDirection::Out),
+                                )]),
+                                connect_vertices: BTreeMap::from([(
+                                    edge.end_v_id,
+                                    vec![(edge.id, PatternDirection::Out)],
+                                )]),
+                                out_degree: 1,
+                                in_degree: 0,
+                            },
+                        );
+                        let vertex_set = new_pattern
+                            .vertex_label_map
+                            .entry(edge.start_v_label)
+                            .or_insert(BTreeSet::new());
+                        vertex_set.insert(edge.start_v_id);
+                    }
                 }
-                // the start vertex not existed, add to the new Pattern
-                None => {
-                    new_pattern.vertices.insert(
-                        edge.start_v_id,
-                        PatternVertex {
-                            id: edge.start_v_id,
-                            label: edge.start_v_label,
-                            rank: 0,
-                            connect_edges: BTreeMap::from([(
-                                edge.id,
-                                (edge.end_v_id, PatternDirection::Out),
-                            )]),
-                            connect_vertices: BTreeMap::from([(
-                                edge.end_v_id,
-                                vec![(edge.id, PatternDirection::Out)],
-                            )]),
-                            out_degree: 1,
-                            in_degree: 0,
-                        },
-                    );
-                    let vertex_set = new_pattern
-                        .vertex_label_map
-                        .entry(edge.start_v_label)
-                        .or_insert(BTreeSet::new());
-                    vertex_set.insert(edge.start_v_id);
-                }
-            }
-
-            // Add or update the end vertex to the new Pattern
-            match new_pattern.vertices.get_mut(&edge.end_v_id) {
-                // the end vertex existed, just update the connection info
-                Some(end_vertex) => {
-                    end_vertex
-                        .connect_edges
-                        .insert(edge.id, (edge.start_v_id, PatternDirection::In));
-                    let end_vertex_connect_vertices_vec = end_vertex
-                        .connect_vertices
-                        .entry(edge.start_v_id)
-                        .or_insert(Vec::new());
-                    end_vertex_connect_vertices_vec.push((edge.id, PatternDirection::In));
-                    end_vertex.in_degree += 1;
-                }
-                // the end vertex not existed, add the new Pattern
-                None => {
-                    new_pattern.vertices.insert(
-                        edge.end_v_id,
-                        PatternVertex {
-                            id: edge.end_v_id,
-                            label: edge.end_v_label,
-                            rank: 0,
-                            connect_edges: BTreeMap::from([(
-                                edge.id,
-                                (edge.start_v_id, PatternDirection::In),
-                            )]),
-                            connect_vertices: BTreeMap::from([(
-                                edge.start_v_id,
-                                vec![(edge.id, PatternDirection::In)],
-                            )]),
-                            out_degree: 0,
-                            in_degree: 1,
-                        },
-                    );
-                    let vertex_set = new_pattern
-                        .vertex_label_map
-                        .entry(edge.end_v_label)
-                        .or_insert(BTreeSet::new());
-                    vertex_set.insert(edge.end_v_id);
+    
+                // Add or update the end vertex to the new Pattern
+                match new_pattern.vertices.get_mut(&edge.end_v_id) {
+                    // the end vertex existed, just update the connection info
+                    Some(end_vertex) => {
+                        end_vertex
+                            .connect_edges
+                            .insert(edge.id, (edge.start_v_id, PatternDirection::In));
+                        let end_vertex_connect_vertices_vec = end_vertex
+                            .connect_vertices
+                            .entry(edge.start_v_id)
+                            .or_insert(Vec::new());
+                        end_vertex_connect_vertices_vec.push((edge.id, PatternDirection::In));
+                        end_vertex.in_degree += 1;
+                    }
+                    // the end vertex not existed, add the new Pattern
+                    None => {
+                        new_pattern.vertices.insert(
+                            edge.end_v_id,
+                            PatternVertex {
+                                id: edge.end_v_id,
+                                label: edge.end_v_label,
+                                rank: 0,
+                                connect_edges: BTreeMap::from([(
+                                    edge.id,
+                                    (edge.start_v_id, PatternDirection::In),
+                                )]),
+                                connect_vertices: BTreeMap::from([(
+                                    edge.start_v_id,
+                                    vec![(edge.id, PatternDirection::In)],
+                                )]),
+                                out_degree: 0,
+                                in_degree: 1,
+                            },
+                        );
+                        let vertex_set = new_pattern
+                            .vertex_label_map
+                            .entry(edge.end_v_label)
+                            .or_insert(BTreeSet::new());
+                        vertex_set.insert(edge.end_v_id);
+                    }
                 }
             }
+            Ok(new_pattern)
+        } else {
+            Err(IrError::EmptyPattern)
         }
-
-        new_pattern
     }
 }
 
 impl TryFrom<(&pb::Pattern, &PatternMeta)> for Pattern {
-    type Error = ();
-    fn try_from((pattern_message, pattern_meta):(&pb::Pattern, &PatternMeta)) -> Result<Self, ()> {
+    type Error = IrError;
+    fn try_from((pattern_message, pattern_meta):(&pb::Pattern, &PatternMeta)) -> Result<Self, Self::Error> {
         use ir_common::generated::common::name_or_id::Item as TagItem;
         use pb::pattern::binder::Item as BinderItem;
 
@@ -312,33 +311,33 @@ impl TryFrom<(&pb::Pattern, &PatternMeta)> for Pattern {
         let mut tag_id_map: HashMap<String, PatternId> = HashMap::new();
         for sentence in &pattern_message.sentences {
             if sentence.binders.is_empty() {
-                return Err(());
+                return Err(IrError::FuzzyPattern);
             }
             let start_tag = sentence
                 .start
                 .as_ref()
-                .ok_or(())?
+                .ok_or(IrError::FuzzyPattern)?
                 .item
                 .as_ref()
-                .ok_or(())?;
+                .ok_or(IrError::FuzzyPattern)?;
             if let TagItem::Name(start_tag_name) = start_tag {
                 if !tag_id_map.contains_key(start_tag_name) {
                     tag_id_map.insert(start_tag_name.clone(), assign_vertex_id);
                 }
             } else {
-                return Err(());
+                return Err(IrError::FuzzyPattern);
             }
             for (i, binder) in sentence.binders.iter().enumerate() {
                 if let Some(BinderItem::Edge(edge_expand)) = binder.item.as_ref() {
                     if edge_expand.is_edge {
-                        return Err(());
+                        return Err(IrError::FuzzyPattern);
                     }
                     if let Some(params) = edge_expand.params.as_ref() {
                         if params.tables.len() != 1 {
-                            return Err(());
+                            return Err(IrError::FuzzyPattern);
                         }
                         if !params.columns.is_empty() {
-                            return Err(());
+                            return Err(IrError::FuzzyPattern);
                         }
                         if let Some(TagItem::Name(edge_label_name)) = params.tables[0].item.as_ref() {
                             if let Some(edge_label_id) = pattern_meta.get_edge_id(edge_label_name) {
@@ -354,21 +353,21 @@ impl TryFrom<(&pb::Pattern, &PatternMeta)> for Pattern {
                                 assign_vertex_id += 1;
                                 assign_edge_id += 1;
                             } else {
-                                return Err(());
+                                return Err(IrError::FuzzyPattern);
                             }
                         } else {
-                            return Err(());
+                            return Err(IrError::FuzzyPattern);
                         }
                     } else {
-                        return Err(());
+                        return Err(IrError::FuzzyPattern);
                     }
                 } else {
-                    return Err(());
+                    return Err(IrError::FuzzyPattern);
                 }
 
             }
         }
-        Ok(Pattern::from(pattern_edges))
+        Pattern::try_from(pattern_edges)
     }
 }
 
@@ -2630,59 +2629,7 @@ mod tests {
         let encoder = Encoder::init_by_pattern(&pattern, 4);
         pattern.rank_ranking();
         let code1: Vec<u8> = pattern.encode_to(&encoder);
-        let mut pattern: Pattern = Pattern::decode_from(code1.clone(), &encoder);
-        let encoder = Encoder::init_by_pattern(&pattern, 4);
-        pattern.rank_ranking();
-        let code2: Vec<u8> = pattern.encode_to(&encoder);
-        assert_eq!(code1, code2);
-    }
-
-    #[test]
-    fn test_encode_decode_of_case2() {
-        let mut pattern = build_pattern_case2();
-        let encoder = Encoder::init_by_pattern(&pattern, 4);
-        pattern.rank_ranking();
-        let code1: Vec<u8> = pattern.encode_to(&encoder);
-        let mut pattern: Pattern = Pattern::decode_from(code1.clone(), &encoder);
-        let encoder = Encoder::init_by_pattern(&pattern, 4);
-        pattern.rank_ranking();
-        let code2: Vec<u8> = pattern.encode_to(&encoder);
-        assert_eq!(code1, code2);
-    }
-
-    #[test]
-    fn test_encode_decode_of_case3() {
-        let mut pattern = build_pattern_case3();
-        let encoder = Encoder::init_by_pattern(&pattern, 4);
-        pattern.rank_ranking();
-        let code1: Vec<u8> = pattern.encode_to(&encoder);
-        let mut pattern = build_pattern_case3();
-        let encoder = Encoder::init_by_pattern(&pattern, 4);
-        pattern.rank_ranking();
-        let code2: Vec<u8> = pattern.encode_to(&encoder);
-        assert_eq!(code1, code2);
-    }
-
-    #[test]
-    fn test_encode_decode_of_case4() {
-        let mut pattern = build_pattern_case4();
-        let encoder = Encoder::init_by_pattern(&pattern, 4);
-        pattern.rank_ranking();
-        let code1: Vec<u8> = pattern.encode_to(&encoder);
-        let mut pattern = build_pattern_case4();
-        let encoder = Encoder::init_by_pattern(&pattern, 4);
-        pattern.rank_ranking();
-        let code2: Vec<u8> = pattern.encode_to(&encoder);
-        assert_eq!(code1, code2);
-    }
-
-    #[test]
-    fn test_encode_decode_of_case5() {
-        let mut pattern = build_pattern_case5();
-        let encoder = Encoder::init_by_pattern(&pattern, 4);
-        pattern.rank_ranking();
-        let code1: Vec<u8> = pattern.encode_to(&encoder);
-        let mut pattern = build_pattern_case5();
+        let mut pattern: Pattern = Pattern::decode_from(code1.clone(), &encoder).unwrap();
         let encoder = Encoder::init_by_pattern(&pattern, 4);
         pattern.rank_ranking();
         let code2: Vec<u8> = pattern.encode_to(&encoder);

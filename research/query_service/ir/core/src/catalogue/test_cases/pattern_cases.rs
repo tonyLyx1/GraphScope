@@ -14,6 +14,7 @@
 //! limitations under the License.
 
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
@@ -32,7 +33,7 @@ use crate::catalogue::{PatternId, PatternLabelId};
 /// The right A has id 1
 pub fn build_pattern_case1() -> Pattern {
     let pattern_vec = vec![PatternEdge::new(0, 0, 0, 1, 0, 0), PatternEdge::new(1, 0, 1, 0, 0, 0)];
-    Pattern::from(pattern_vec)
+    Pattern::try_from(pattern_vec).unwrap()
 }
 
 /// The pattern looks like:
@@ -53,7 +54,7 @@ pub fn build_pattern_case2() -> Pattern {
         PatternEdge::new(2, 1, 0, 2, 0, 1),
         PatternEdge::new(3, 1, 1, 2, 0, 1),
     ];
-    Pattern::from(pattern_vec)
+    Pattern::try_from(pattern_vec).unwrap()
 }
 
 /// The pattern looks like:
@@ -72,7 +73,7 @@ pub fn build_pattern_case3() -> Pattern {
         PatternEdge::new(gen_id(), 1, 1, 3, 0, 1),
         PatternEdge::new(gen_id(), 2, 2, 3, 1, 1),
     ];
-    Pattern::from(pattern_vec)
+    Pattern::try_from(pattern_vec).unwrap()
 }
 
 /// The pattern looks like:
@@ -92,7 +93,7 @@ pub fn build_pattern_case4() -> Pattern {
         PatternEdge::new(gen_id(), 1, 1, 3, 0, 1),
         PatternEdge::new(gen_id(), 2, 2, 3, 1, 1),
     ];
-    Pattern::from(pattern_vec)
+    Pattern::try_from(pattern_vec).unwrap()
 }
 
 /// The pattern looks like
@@ -128,7 +129,7 @@ pub fn build_pattern_case5() -> Pattern {
         PatternEdge::new(gen_id(), 15, id_vec_c[1], id_vec_b[2], label_c, label_b),
         PatternEdge::new(gen_id(), 5, id_vec_d[0], id_vec_c[1], label_d, label_c),
     ];
-    Pattern::from(pattern_vec)
+    Pattern::try_from(pattern_vec).unwrap()
 }
 
 /// The pattern looks like:
@@ -141,7 +142,7 @@ pub fn build_pattern_case6() -> Pattern {
     let pattern_edge1 = PatternEdge::new(0, 1, 0, 1, 1, 2);
     let pattern_edge2 = PatternEdge::new(1, 2, 0, 2, 1, 3);
     let pattern_vec = vec![pattern_edge1, pattern_edge2];
-    Pattern::from(pattern_vec)
+    Pattern::try_from(pattern_vec).unwrap()
 }
 
 /// The pattern looks like:
@@ -162,24 +163,24 @@ pub fn build_pattern_case7() -> Pattern {
     let edge_5 = PatternEdge::new(4, 5, 1, 3, 2, 4);
     let edge_6 = PatternEdge::new(5, 6, 3, 2, 4, 3);
     let pattern_edges = vec![edge_1, edge_2, edge_3, edge_4, edge_5, edge_6];
-    Pattern::from(pattern_edges)
+    Pattern::try_from(pattern_edges).unwrap()
 }
 
 /// Pattern from modern schema file
 /// Person only Pattern
 pub fn build_modern_pattern_case1() -> Pattern {
-    Pattern::from((0, 0))
+    Pattern::try_from((0, 0)).unwrap()
 }
 
 /// Software only Pattern
 pub fn build_modern_pattern_case2() -> Pattern {
-    Pattern::from((0, 1))
+    Pattern::try_from((0, 1)).unwrap()
 }
 
 /// Person -> knows -> Person
 pub fn build_modern_pattern_case3() -> Pattern {
     let pattern_edge = PatternEdge::new(0, 0, 0, 1, 0, 0);
-    let mut pattern = Pattern::from(vec![pattern_edge]);
+    let mut pattern = Pattern::try_from(vec![pattern_edge]).unwrap();
     pattern
         .get_vertex_mut_from_id(1)
         .unwrap()
@@ -190,7 +191,19 @@ pub fn build_modern_pattern_case3() -> Pattern {
 /// Person -> created -> Software
 pub fn build_modern_pattern_case4() -> Pattern {
     let pattern_edge = PatternEdge::new(0, 1, 0, 1, 0, 1);
-    Pattern::from(vec![pattern_edge])
+    Pattern::try_from(vec![pattern_edge]).unwrap()
+}
+
+/// Pattern from ldbc schema file
+/// Person -> knows -> Person
+pub fn build_ldbc_pattern_case1() -> Pattern {
+    let pattern_edge = PatternEdge::new(0, 12, 0, 1, 1, 1);
+    let mut pattern = Pattern::try_from(vec![pattern_edge]).unwrap();
+    pattern
+        .get_vertex_mut_from_id(1)
+        .unwrap()
+        .set_rank(1);
+    pattern
 }
 
 /// Test Cases for Index Ranking
@@ -232,7 +245,7 @@ pub fn build_pattern_rank_ranking_case1() -> (Pattern, HashMap<String, PatternId
         *vertex_label_map.get("A").unwrap(),
         *vertex_label_map.get("A").unwrap(),
     )];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case2() -> (Pattern, HashMap<String, PatternId>) {
@@ -261,7 +274,7 @@ pub fn build_pattern_rank_ranking_case2() -> (Pattern, HashMap<String, PatternId
             *vertex_label_map.get("A").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case3() -> (Pattern, HashMap<String, PatternId>) {
@@ -292,7 +305,7 @@ pub fn build_pattern_rank_ranking_case3() -> (Pattern, HashMap<String, PatternId
             *vertex_label_map.get("B").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case4() -> (Pattern, HashMap<String, PatternId>) {
@@ -331,7 +344,7 @@ pub fn build_pattern_rank_ranking_case4() -> (Pattern, HashMap<String, PatternId
             *vertex_label_map.get("A").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case5() -> (Pattern, HashMap<String, PatternId>) {
@@ -370,7 +383,7 @@ pub fn build_pattern_rank_ranking_case5() -> (Pattern, HashMap<String, PatternId
             *vertex_label_map.get("A").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case6() -> (Pattern, HashMap<String, PatternId>) {
@@ -417,7 +430,7 @@ pub fn build_pattern_rank_ranking_case6() -> (Pattern, HashMap<String, PatternId
             *vertex_label_map.get("A").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case7() -> (Pattern, HashMap<String, PatternId>) {
@@ -464,7 +477,7 @@ pub fn build_pattern_rank_ranking_case7() -> (Pattern, HashMap<String, PatternId
             *vertex_label_map.get("B").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case8() -> (Pattern, HashMap<String, PatternId>) {
@@ -512,7 +525,7 @@ pub fn build_pattern_rank_ranking_case8() -> (Pattern, HashMap<String, PatternId
             *vertex_label_map.get("B").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case9() -> (Pattern, HashMap<String, PatternId>) {
@@ -568,7 +581,7 @@ pub fn build_pattern_rank_ranking_case9() -> (Pattern, HashMap<String, PatternId
             *vertex_label_map.get("B").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case10() -> (Pattern, HashMap<String, PatternId>) {
@@ -632,7 +645,7 @@ pub fn build_pattern_rank_ranking_case10() -> (Pattern, HashMap<String, PatternI
             *vertex_label_map.get("B").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case11() -> (Pattern, HashMap<String, PatternId>) {
@@ -705,7 +718,7 @@ pub fn build_pattern_rank_ranking_case11() -> (Pattern, HashMap<String, PatternI
             *vertex_label_map.get("B").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case12() -> (Pattern, HashMap<String, PatternId>) {
@@ -787,7 +800,7 @@ pub fn build_pattern_rank_ranking_case12() -> (Pattern, HashMap<String, PatternI
             *vertex_label_map.get("B").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case13() -> (Pattern, HashMap<String, PatternId>) {
@@ -873,7 +886,7 @@ pub fn build_pattern_rank_ranking_case13() -> (Pattern, HashMap<String, PatternI
             *vertex_label_map.get("A").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case14() -> (Pattern, HashMap<String, PatternId>) {
@@ -969,7 +982,7 @@ pub fn build_pattern_rank_ranking_case14() -> (Pattern, HashMap<String, PatternI
             *vertex_label_map.get("C").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case15() -> (Pattern, HashMap<String, PatternId>) {
@@ -1063,7 +1076,7 @@ pub fn build_pattern_rank_ranking_case15() -> (Pattern, HashMap<String, PatternI
             *vertex_label_map.get("A").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case16() -> (Pattern, HashMap<String, PatternId>) {
@@ -1171,7 +1184,7 @@ pub fn build_pattern_rank_ranking_case16() -> (Pattern, HashMap<String, PatternI
             *vertex_label_map.get("D").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case17() -> (Pattern, HashMap<String, PatternId>) {
@@ -1228,7 +1241,7 @@ pub fn build_pattern_rank_ranking_case17() -> (Pattern, HashMap<String, PatternI
             *vertex_label_map.get("A").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }
 
 pub fn build_pattern_rank_ranking_case18() -> (Pattern, HashMap<String, PatternId>) {
@@ -1293,5 +1306,5 @@ pub fn build_pattern_rank_ranking_case18() -> (Pattern, HashMap<String, PatternI
             *vertex_label_map.get("A").unwrap(),
         ),
     ];
-    (Pattern::from(pattern_vec), vertex_id_map)
+    (Pattern::try_from(pattern_vec).unwrap(), vertex_id_map)
 }

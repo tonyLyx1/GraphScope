@@ -15,7 +15,6 @@
 
 use std::fs::File;
 
-use crate::catalogue::pattern::*;
 use crate::catalogue::pattern_meta::*;
 use crate::{plan::meta::Schema, JsonIO};
 
@@ -43,16 +42,4 @@ pub fn read_ldbc_graph_schema() -> Schema {
 pub fn get_ldbc_pattern_meta() -> PatternMeta {
     let ldbc_schema = read_ldbc_graph_schema();
     PatternMeta::from(ldbc_schema)
-}
-
-/// Pattern from ldbc schema file
-/// Person -> knows -> Person
-pub fn build_ldbc_pattern_case1() -> Pattern {
-    let pattern_edge = PatternEdge::new(0, 12, 0, 1, 1, 1);
-    let mut pattern = Pattern::from(vec![pattern_edge]);
-    pattern
-        .get_vertex_mut_from_id(1)
-        .unwrap()
-        .set_rank(1);
-    pattern
 }

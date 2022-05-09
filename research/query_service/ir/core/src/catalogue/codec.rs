@@ -14,20 +14,22 @@
 //! limitations under the License.
 
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use ascii::AsciiChar;
 use ascii::AsciiString;
 use ascii::ToAsciiChar;
 
+use crate::error::IrError;
 use crate::catalogue::extend_step::{ExtendEdge, ExtendStep};
 use crate::catalogue::pattern::Pattern;
 use crate::catalogue::pattern::PatternEdge;
 use crate::catalogue::PatternDirection;
 
-pub trait Cipher<T> {
+pub trait Cipher<T>: Sized {
     fn encode_to(&self, encoder: &Encoder) -> T;
 
-    fn decode_from(src_code: T, encoder: &Encoder) -> Self;
+    fn decode_from(src_code: T, encoder: &Encoder) -> Result<Self, IrError>;
 }
 
 impl Cipher<Vec<u8>> for Pattern {
@@ -36,7 +38,7 @@ impl Cipher<Vec<u8>> for Pattern {
         pattern_encode_unit.to_vec_u8(8)
     }
 
-    fn decode_from(src_code: Vec<u8>, encoder: &Encoder) -> Self {
+    fn decode_from(src_code: Vec<u8>, encoder: &Encoder) -> Result<Self, IrError> {
         let decode_unit = DecodeUnit::new_for_pattern(encoder);
         let decode_vec = decode_unit.decode_to_vec_i32(&src_code, 8);
         DecodeUnit::to_pattern(&decode_vec)
@@ -49,7 +51,7 @@ impl Cipher<AsciiString> for Pattern {
         pattern_encode_unit.to_ascii_string()
     }
 
-    fn decode_from(src_code: AsciiString, encoder: &Encoder) -> Self {
+    fn decode_from(src_code: AsciiString, encoder: &Encoder) -> Result<Self, IrError> {
         let decode_unit = DecodeUnit::new_for_pattern(encoder);
         let decode_vec = decode_unit.decode_to_vec_i32(src_code.as_bytes(), 7);
         DecodeUnit::to_pattern(&decode_vec)
@@ -62,7 +64,7 @@ impl Cipher<Vec<u8>> for ExtendStep {
         extend_step_encode_unit.to_vec_u8(8)
     }
 
-    fn decode_from(src_code: Vec<u8>, encoder: &Encoder) -> Self {
+    fn decode_from(src_code: Vec<u8>, encoder: &Encoder) -> Result<Self, IrError> {
         let decode_unit = DecodeUnit::new_for_extend_step(encoder);
         let decode_vec = decode_unit.decode_to_vec_i32(&src_code, 8);
         DecodeUnit::to_extend_step(&decode_vec)
@@ -75,7 +77,7 @@ impl Cipher<AsciiString> for ExtendStep {
         extend_step_encode_unit.to_ascii_string()
     }
 
-    fn decode_from(src_code: AsciiString, encoder: &Encoder) -> Self {
+    fn decode_from(src_code: AsciiString, encoder: &Encoder) -> Result<Self, IrError> {
         let decode_unit = DecodeUnit::new_for_extend_step(encoder);
         let decode_vec = decode_unit.decode_to_vec_i32(src_code.as_bytes(), 7);
         DecodeUnit::to_extend_step(&decode_vec)
@@ -583,71 +585,74 @@ impl DecodeUnit {
     }
 
     /// Transform a &[i32] decide value to a ExtendStep
-    pub fn to_extend_step(decode_vec: &[i32]) -> ExtendStep {
-        if decode_vec.len() % 4 != 1 {
-            panic!("The length of decode vector doesn's satisfy the requirement of extend step decode");
+    pub fn to_extend_step(decode_vec: &[i32]) -> Result<ExtendStep, IrError> {
+        if decode_vec.len() % 4 == 1 {
+            let mut extend_edges = Vec::with_capacity(decode_vec.len() / 4);
+            for i in (0..decode_vec.len() - 4).step_by(4) {
+                let dir = if decode_vec[i] == 0 { PatternDirection::Out } else { PatternDirection::In };
+                let edge_label = decode_vec[i + 1];
+                let start_v_rank = decode_vec[i + 2];
+                let start_v_label = decode_vec[i + 3];
+                extend_edges.push(ExtendEdge::new(start_v_label, start_v_rank, edge_label, dir));
+            }
+            let target_v_label = *decode_vec.last().unwrap();
+            Ok(ExtendStep::from((target_v_label, extend_edges)))
+        } else {
+            Err(IrError::InvalidCode("Extend Step".to_string()))
         }
-        let mut extend_edges = Vec::with_capacity(decode_vec.len() / 4);
-        for i in (0..decode_vec.len() - 4).step_by(4) {
-            let dir = if decode_vec[i] == 0 { PatternDirection::Out } else { PatternDirection::In };
-            let edge_label = decode_vec[i + 1];
-            let start_v_rank = decode_vec[i + 2];
-            let start_v_label = decode_vec[i + 3];
-            extend_edges.push(ExtendEdge::new(start_v_label, start_v_rank, edge_label, dir));
-        }
-        let target_v_label = *decode_vec.last().unwrap();
-        ExtendStep::from((target_v_label, extend_edges))
     }
 
     /// Transform a &[i32] decode value to a Pattern
-    pub fn to_pattern(decode_vec: &[i32]) -> Pattern {
-        if decode_vec.len() % 5 != 0 {
-            panic!("The length of decode vector doesn's satisfy the requirement of pattern decode");
-        }
-        let mut pattern_edges = Vec::with_capacity(decode_vec.len() / 5);
-        let mut vertices_label_rank_id_map = HashMap::new();
-        for i in (0..decode_vec.len()).step_by(5) {
-            let end_v_rank = decode_vec[i];
-            let start_v_rank = decode_vec[i + 1];
-            let end_v_label = decode_vec[i + 2];
-            let start_v_label = decode_vec[i + 3];
-            let edge_label = decode_vec[i + 4];
-            let edge_id = (i / 5) as i32;
-            let start_v_id = if vertices_label_rank_id_map.contains_key(&(start_v_label, start_v_rank)) {
-                *vertices_label_rank_id_map
-                    .get(&(start_v_label, start_v_rank))
+    pub fn to_pattern(decode_vec: &[i32]) -> Result<Pattern, IrError> {
+        if decode_vec.len() % 5 == 0 {
+            let mut pattern_edges = Vec::with_capacity(decode_vec.len() / 5);
+            let mut vertices_label_rank_id_map = HashMap::new();
+            for i in (0..decode_vec.len()).step_by(5) {
+                let end_v_rank = decode_vec[i];
+                let start_v_rank = decode_vec[i + 1];
+                let end_v_label = decode_vec[i + 2];
+                let start_v_label = decode_vec[i + 3];
+                let edge_label = decode_vec[i + 4];
+                let edge_id = (i / 5) as i32;
+                let start_v_id = if vertices_label_rank_id_map.contains_key(&(start_v_label, start_v_rank)) {
+                    *vertices_label_rank_id_map
+                        .get(&(start_v_label, start_v_rank))
+                        .unwrap()
+                } else {
+                    let v_id = vertices_label_rank_id_map.len() as i32;
+                    vertices_label_rank_id_map.insert((start_v_label, start_v_rank), v_id);
+                    v_id
+                };
+                let end_v_id = if vertices_label_rank_id_map.contains_key(&(end_v_label, end_v_rank)) {
+                    *vertices_label_rank_id_map
+                        .get(&(end_v_label, end_v_rank))
+                        .unwrap()
+                } else {
+                    let v_id = vertices_label_rank_id_map.len() as i32;
+                    vertices_label_rank_id_map.insert((end_v_label, end_v_rank), v_id);
+                    v_id
+                };
+                pattern_edges.push(PatternEdge::new(
+                    edge_id,
+                    edge_label,
+                    start_v_id,
+                    end_v_id,
+                    start_v_label,
+                    end_v_label,
+                ));
+            }
+            let mut pattern = Pattern::try_from(pattern_edges)?;
+            for ((_, rank), id) in vertices_label_rank_id_map {
+                pattern
+                    .get_vertex_mut_from_id(id)
                     .unwrap()
-            } else {
-                let v_id = vertices_label_rank_id_map.len() as i32;
-                vertices_label_rank_id_map.insert((start_v_label, start_v_rank), v_id);
-                v_id
-            };
-            let end_v_id = if vertices_label_rank_id_map.contains_key(&(end_v_label, end_v_rank)) {
-                *vertices_label_rank_id_map
-                    .get(&(end_v_label, end_v_rank))
-                    .unwrap()
-            } else {
-                let v_id = vertices_label_rank_id_map.len() as i32;
-                vertices_label_rank_id_map.insert((end_v_label, end_v_rank), v_id);
-                v_id
-            };
-            pattern_edges.push(PatternEdge::new(
-                edge_id,
-                edge_label,
-                start_v_id,
-                end_v_id,
-                start_v_label,
-                end_v_label,
-            ));
+                    .set_rank(rank);
+            }
+            Ok(pattern)
+        } else {
+            Err(IrError::InvalidCode("Pattern".to_string()))
         }
-        let mut pattern = Pattern::from(pattern_edges);
-        for ((_, rank), id) in vertices_label_rank_id_map {
-            pattern
-                .get_vertex_mut_from_id(id)
-                .unwrap()
-                .set_rank(rank);
-        }
-        pattern
+
     }
 }
 
@@ -969,11 +974,63 @@ mod tests {
     }
 
     #[test]
+    fn test_encode_decode_of_case2() {
+        let mut pattern = build_pattern_case2();
+        let encoder = Encoder::init_by_pattern(&pattern, 4);
+        pattern.rank_ranking();
+        let code1: Vec<u8> = pattern.encode_to(&encoder);
+        let mut pattern: Pattern = Pattern::decode_from(code1.clone(), &encoder).unwrap();
+        let encoder = Encoder::init_by_pattern(&pattern, 4);
+        pattern.rank_ranking();
+        let code2: Vec<u8> = pattern.encode_to(&encoder);
+        assert_eq!(code1, code2);
+    }
+
+    #[test]
+    fn test_encode_decode_of_case3() {
+        let mut pattern = build_pattern_case3();
+        let encoder = Encoder::init_by_pattern(&pattern, 4);
+        pattern.rank_ranking();
+        let code1: Vec<u8> = pattern.encode_to(&encoder);
+        let mut pattern = build_pattern_case3();
+        let encoder = Encoder::init_by_pattern(&pattern, 4);
+        pattern.rank_ranking();
+        let code2: Vec<u8> = pattern.encode_to(&encoder);
+        assert_eq!(code1, code2);
+    }
+
+    #[test]
+    fn test_encode_decode_of_case4() {
+        let mut pattern = build_pattern_case4();
+        let encoder = Encoder::init_by_pattern(&pattern, 4);
+        pattern.rank_ranking();
+        let code1: Vec<u8> = pattern.encode_to(&encoder);
+        let mut pattern = build_pattern_case4();
+        let encoder = Encoder::init_by_pattern(&pattern, 4);
+        pattern.rank_ranking();
+        let code2: Vec<u8> = pattern.encode_to(&encoder);
+        assert_eq!(code1, code2);
+    }
+
+    #[test]
+    fn test_encode_decode_of_case5() {
+        let mut pattern = build_pattern_case5();
+        let encoder = Encoder::init_by_pattern(&pattern, 4);
+        pattern.rank_ranking();
+        let code1: Vec<u8> = pattern.encode_to(&encoder);
+        let mut pattern = build_pattern_case5();
+        let encoder = Encoder::init_by_pattern(&pattern, 4);
+        pattern.rank_ranking();
+        let code2: Vec<u8> = pattern.encode_to(&encoder);
+        assert_eq!(code1, code2);
+    }
+
+    #[test]
     fn test_encode_decode_pattern_case1_vec_u8() {
         let pattern = build_pattern_case1();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: Vec<u8> = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -983,7 +1040,7 @@ mod tests {
         let pattern = build_pattern_case1();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -993,7 +1050,7 @@ mod tests {
         let pattern = build_pattern_case2();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: Vec<u8> = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1003,7 +1060,7 @@ mod tests {
         let pattern = build_pattern_case2();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1013,7 +1070,7 @@ mod tests {
         let pattern = build_pattern_case3();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: Vec<u8> = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1023,7 +1080,7 @@ mod tests {
         let pattern = build_pattern_case3();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1033,7 +1090,7 @@ mod tests {
         let pattern = build_pattern_case4();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: Vec<u8> = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1043,7 +1100,7 @@ mod tests {
         let pattern = build_pattern_case4();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1053,7 +1110,7 @@ mod tests {
         let pattern = build_pattern_case5();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: Vec<u8> = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1063,7 +1120,7 @@ mod tests {
         let pattern = build_pattern_case5();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1073,7 +1130,7 @@ mod tests {
         let pattern = build_pattern_case6();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: Vec<u8> = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1083,7 +1140,7 @@ mod tests {
         let pattern = build_pattern_case6();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1093,7 +1150,7 @@ mod tests {
         let pattern = build_pattern_case7();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: Vec<u8> = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1103,7 +1160,7 @@ mod tests {
         let pattern = build_pattern_case7();
         let encoder = Encoder::init_by_pattern(&pattern, 2);
         let pattern_code: AsciiString = pattern.encode_to(&encoder);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code, pattern_code_from_decode);
     }
@@ -1118,7 +1175,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1133,7 +1190,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1148,7 +1205,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1163,7 +1220,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1178,7 +1235,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1193,7 +1250,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1208,7 +1265,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1223,7 +1280,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1238,7 +1295,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1253,7 +1310,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1268,7 +1325,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1283,7 +1340,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1298,7 +1355,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1313,7 +1370,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1328,7 +1385,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1343,7 +1400,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1358,7 +1415,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1373,7 +1430,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1388,7 +1445,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1403,7 +1460,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1418,7 +1475,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1433,7 +1490,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1448,7 +1505,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1463,7 +1520,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1478,7 +1535,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1493,7 +1550,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1508,7 +1565,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1523,7 +1580,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1538,7 +1595,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1553,7 +1610,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1568,7 +1625,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1583,7 +1640,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1598,7 +1655,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1613,7 +1670,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1628,7 +1685,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: Vec<u8> = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: Vec<u8> = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1643,7 +1700,7 @@ mod tests {
         pattern.rank_ranking();
         let pattern_code2: AsciiString = pattern.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code2);
-        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder);
+        let pattern_from_decode: Pattern = Cipher::decode_from(pattern_code1.clone(), &encoder).unwrap();
         let pattern_code_from_decode: AsciiString = pattern_from_decode.encode_to(&encoder);
         assert_eq!(pattern_code1, pattern_code_from_decode);
     }
@@ -1653,7 +1710,7 @@ mod tests {
         let extend_step_1 = build_extend_step_case2();
         let encoder = Encoder::init(2, 2, 2, 2);
         let extend_step_1_code: Vec<u8> = extend_step_1.encode_to(&encoder);
-        let extend_step_1_from_decode: ExtendStep = Cipher::decode_from(extend_step_1_code, &encoder);
+        let extend_step_1_from_decode: ExtendStep = Cipher::decode_from(extend_step_1_code, &encoder).unwrap();
         assert_eq!(extend_step_1.get_target_v_label(), extend_step_1_from_decode.get_target_v_label());
         assert_eq!(extend_step_1.get_extend_edges_num(), extend_step_1_from_decode.get_extend_edges_num());
         assert_eq!(
@@ -1687,7 +1744,7 @@ mod tests {
         let extend_step_1 = build_extend_step_case2();
         let encoder = Encoder::init(2, 2, 2, 2);
         let extend_step_1_code: AsciiString = extend_step_1.encode_to(&encoder);
-        let extend_step_1_from_decode: ExtendStep = Cipher::decode_from(extend_step_1_code, &encoder);
+        let extend_step_1_from_decode: ExtendStep = Cipher::decode_from(extend_step_1_code, &encoder).unwrap();
         assert_eq!(extend_step_1.get_target_v_label(), extend_step_1_from_decode.get_target_v_label());
         assert_eq!(extend_step_1.get_extend_edges_num(), extend_step_1_from_decode.get_extend_edges_num());
         assert_eq!(
