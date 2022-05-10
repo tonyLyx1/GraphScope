@@ -13,7 +13,7 @@
 //! See the License for the specific language governing permissions and
 //! limitations under the License.
 
-type PatternId = i32;
+type PatternId = usize;
 type PatternLabelId = ir_common::KeyId;
 type PatternRankId = i32;
 
